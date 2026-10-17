@@ -1,0 +1,93 @@
+name: iOS
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: Core tests and app build (macOS 15, hosted)
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      # The iPhone Duo hinge APIs (DeviceHinge, onHingeChange) ship in the iOS 27.1 SDK.
+      MIN_SIM_SDK: "27.1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the newest Xcode with the iPhone Duo SDK
+        run: |
+          set -euo pipefail
+          echo "Xcodes on this image:"
+          ls -d /Applications/Xcode*.app || true
+          chosen=""
+          for app in $(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -t_ -k2 -V -r); do
+            [ -L "$app" ] && continue
+            sdk=$(DEVELOPER_DIR="$app/Contents/Developer" xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null || echo 0)
+            echo "$app -> iphonesimulator SDK $sdk"
+            if [ "$(printf '%s\n%s\n' "$MIN_SIM_SDK" "$sdk" | sort -V | head -n1)" = "$MIN_SIM_SDK" ]; then
+              chosen="$app"; break
+            fi
+          done
+          if [ -z "$chosen" ]; then
+            echo "::error::No Xcode on macos-15 has iphonesimulator SDK $MIN_SIM_SDK or later, so the iPhone Duo APIs are not available on this image yet."
+            exit 1
+          fi
+          sudo xcode-select -s "$chosen/Contents/Developer"
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Core package tests (swift test)
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in data if "iOS" in k), key=lambda k: [int(x) for x in k.rsplit("iOS-", 1)[-1].split("-")], reverse=True)
+          for runtime in ios:
+              for d in data[runtime]:
+                  if d["name"].startswith("iPhone"):
+                      print(d["udid"]); sys.exit(0)
+          ')
+          if [ -z "$udid" ]; then
+            echo "::error::No iPhone simulator is available for the selected Xcode."
+            exit 1
+          fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test the app on the simulator
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project App/Hingeling.xcodeproj \
+            -scheme Hingeling \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/Hingeling.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            build test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hingeling-xcresult
+          path: build/Hingeling.xcresult
+          if-no-files-found: ignore
