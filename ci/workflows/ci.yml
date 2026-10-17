@@ -1,0 +1,40 @@
+# Move this file to .github/workflows/ci.yml (see the tracking issue).
+# It lives in ci/workflows because the token that created the repo cannot push workflow files.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-linux:
+    name: PocketPetCore (Linux, swift test)
+    runs-on: ubuntu-latest
+    container: swift:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test --parallel
+
+  app-macos:
+    name: Hingeling app (macOS, xcodebuild)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode
+        run: xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Core tests on macOS
+        run: swift test
+      - name: Build and test the app
+        run: scripts/mac-build-and-test.sh
