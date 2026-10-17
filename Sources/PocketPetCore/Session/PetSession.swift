@@ -117,8 +117,16 @@ public struct PetSession {
 
     /// Played with a nearby pet. The caller checks `MeetupLedger` first.
     @discardableResult
-    public mutating func playedWithFriend(at now: Date) -> ActionResult {
-        let result = engine.meetupBoost(at: now)
+    public mutating func playedWithFriend(_ amount: Meter = MeetupLedger.boost, at now: Date) -> ActionResult {
+        let result = engine.meetupBoost(amount, at: now)
+        if result.wasApplied { save() }
+        return result
+    }
+
+    /// A present from a nearby pet. The caller checks `MeetupLedger` first.
+    @discardableResult
+    public mutating func received(_ gift: Gift, at now: Date) -> ActionResult {
+        let result = engine.receive(gift, at: now)
         if result.wasApplied { save() }
         return result
     }

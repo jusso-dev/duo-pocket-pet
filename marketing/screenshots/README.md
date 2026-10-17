@@ -27,7 +27,7 @@ Checked against [Apple's screenshot specifications](https://developer.apple.com/
 
 Files must be JPEG or PNG with no alpha channel. The script exports JPEG, which has none.
 
-For iPhone Duo, take shot 1 with the simulator showing the outer display, and shots 2, 3 and 5 on the inner display. Shot 4 is for standard iPhones only. The script prints each file's pixel size, so check every one against this table before uploading.
+For iPhone Duo, take shot 1 with the simulator showing the outer display, and shots 2, 3 and 5 on the inner display. The `-fold` argument only sets the app's posture, not the simulator's, so the script runs the Duo in two passes and asks you to close, then open, the simulator before each one. Shot 4 is for standard iPhones only. The script prints each file's pixel size, so check every one against this table before uploading.
 
 ## No frames or marks
 

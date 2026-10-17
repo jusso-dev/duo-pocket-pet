@@ -7,12 +7,22 @@ struct StageView: View {
     let model: AppModel
     let angleDegrees: Double
     @State private var cheerMessage: String?
+    @State private var showingNearby = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
     private var routine: StageRoutine { model.session.stageRoutine }
 
     var body: some View {
+        layout
+            .sheet(isPresented: $showingNearby) {
+                if let meetup = model.meetup {
+                    NearbyView(model: model, meetup: meetup)
+                }
+            }
+    }
+
+    private var layout: some View {
         FoldAwareSplit { _ in
             stage
         } second: { _ in
@@ -38,7 +48,7 @@ struct StageView: View {
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     PetSpriteView(state: model.state, onStage: routine.usesStageFrames, maxScale: 10, halo: halo)
-                    if let friend = model.meetup?.status.friend {
+                    if let friend = model.meetup?.friend {
                         // A visiting pet dances alongside.
                         PetSpriteView(state: .sample(mood: friend.mood, stage: friend.stage, name: friend.name), onStage: true, maxScale: 10, halo: halo)
                     }
@@ -77,7 +87,7 @@ struct StageView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let meetup = model.meetup {
-                MeetupPanel(meetup: meetup, petName: model.state.name, showsFriend: false)
+                MeetupPanel(meetup: meetup, petName: model.state.name) { showingNearby = true }
                     .frame(maxWidth: 420)
             }
         }

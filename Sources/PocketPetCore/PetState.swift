@@ -279,6 +279,20 @@ public struct PetEngine: Sendable {
         return .applied
     }
 
+    /// A present from a nearby pet. Not rate limited here: `MeetupLedger`
+    /// decides whether today's gifts from that friend still count.
+    @discardableResult
+    public mutating func receive(_ gift: Gift, at now: Date) -> ActionResult {
+        tick(to: now)
+        if state.isAsleep { return .refused(.asleep) }
+        switch gift {
+        case .snack: state.hunger = (state.hunger - 0.15).clampedMeter
+        case .toy: state.happiness = (state.happiness + 0.1).clampedMeter
+        case .bath: state.hygiene = (state.hygiene + 0.2).clampedMeter
+        }
+        return .applied
+    }
+
     /// Happiness from playing with a nearby pet. Not rate limited here:
     /// `MeetupLedger` decides whether the pair has had today's boost.
     @discardableResult

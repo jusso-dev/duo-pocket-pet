@@ -2,19 +2,12 @@ import PocketPetCore
 import SwiftUI
 
 /// Every iPhone without a hinge: the home screen with a Bedtime or Wake button
-/// standing in for closing the phone, and the meetup switch.
+/// standing in for closing the phone. Nearby play opens from the home screen.
 struct StandardHomeView: View {
     let model: AppModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            HomeView(model: model, showsBedtime: true)
-            if let meetup = model.meetup {
-                MeetupPanel(meetup: meetup, petName: model.state.name)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-            }
-        }
+        HomeView(model: model, showsBedtime: true)
     }
 }
 

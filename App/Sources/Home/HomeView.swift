@@ -10,12 +10,22 @@ struct HomeView: View {
     let model: AppModel
     var showsBedtime = false
     @State private var reaction: PetReactionCue?
+    @State private var showingNearby = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var scheme
 
     private var palette: RetroPalette { .current(scheme) }
 
     var body: some View {
+        layout
+            .sheet(isPresented: $showingNearby) {
+                if let meetup = model.meetup {
+                    NearbyView(model: model, meetup: meetup)
+                }
+            }
+    }
+
+    private var layout: some View {
         // On the inner display the pet sits on one side of the fold and the
         // controls on the other, so no button lands on the crease. Without a
         // fold (outer screen, standard iPhone, older iOS) it is one column.
@@ -100,6 +110,8 @@ struct HomeView: View {
 
             ActionRow(buttons: buttons, dynamicTypeSize: dynamicTypeSize)
 
+            social
+
             if model.remindersOffered {
                 Toggle(
                     "Good morning note while \(model.state.name) sleeps",
@@ -110,6 +122,34 @@ struct HomeView: View {
                 .tint(palette.bezelHighlight.color)
                 .accessibilityHint("Sends one note at 8 am while your pet is asleep")
             }
+        }
+    }
+
+    /// Share a pet card, and play with pets nearby.
+    @ViewBuilder
+    private var social: some View {
+        VStack(spacing: 8) {
+            if let meetup = model.meetup, meetup.friend != nil {
+                // Someone is visiting: say so, with a way into gifts and games.
+                MeetupPanel(meetup: meetup, petName: model.state.name, showsToggle: false) { showingNearby = true }
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { socialButtons }
+                VStack(spacing: 8) { socialButtons }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var socialButtons: some View {
+        ShareCardButton(state: model.state).equatable()
+        if model.meetup != nil {
+            Button { showingNearby = true } label: {
+                KeycapLabel(title: "Nearby", icon: .pair)
+            }
+            .buttonStyle(KeycapButtonStyle())
+            .accessibilityLabel("Nearby")
+            .accessibilityHint("Find pets on the same Wi-Fi or close by to play with")
         }
     }
 

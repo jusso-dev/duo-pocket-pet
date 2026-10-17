@@ -1,30 +1,43 @@
 import Foundation
 
-/// The handshake and play session between two nearby pets. Pure and
-/// clock-free: the transport feeds it messages and ticks, and carries out
-/// the outputs.
+/// A meetup between two nearby pets. Pure and clock-free: the transport feeds
+/// it messages and ticks, and carries out the outputs.
 ///
 /// 1. `start` sends hello. Each side waits for the other's hello, and answers
-///    it with its own hello (once) and a play invite.
-/// 2. Play waits for both invites.
-/// 3. With both invites in, the pets play for `playDuration`.
-/// 4. Then each side gets a happiness boost (at most once per pair per day,
-///    see `MeetupLedger`) and says goodbye.
+///    it with its own hello (once) and a dance invite.
+/// 2. Once both are greeted the pets are together. They dance for
+///    `playDuration` as soon as both invites are in, then stay together for
+///    gifts and games until one side leaves.
+/// 3. Each side's dance ends on its own timer with `.playedTogether`, which
+///    the app turns into a happiness boost (once per pair per day, see
+///    `MeetupLedger`).
 ///
-/// A dropped connection or a timeout at any step ends the meetup with no boost.
+/// A dropped connection or a handshake timeout ends the meetup. A dance that
+/// is cut short gives no boost.
 public struct MeetupMachine: Equatable, Sendable {
     public enum Phase: Equatable, Sendable {
         case idle
         case greeting(since: Date)
-        case inviting(peer: PetCard, since: Date)
-        case playing(peer: PetCard, since: Date)
+        case together(peer: PetCard, since: Date)
         case ended(MeetupEndReason)
+    }
+
+    public enum Dance: Equatable, Sendable {
+        case waiting
+        case dancing(since: Date)
+        case done
     }
 
     public enum Output: Equatable, Sendable {
         case send(MeetupMessage)
-        /// Play finished: raise happiness if the ledger allows it for this pair today.
+        /// Greeted: add the peer to the pals book.
+        case met(peer: PetCard)
+        /// The first dance finished: raise happiness if the ledger allows it.
         case playedTogether(peer: PetCard)
+        /// A present arrived.
+        case receivedGift(Gift, from: PetCard)
+        /// A Leaf, Pebble, Twig message for the game, when one is running.
+        case game(MeetupMessage)
         case ended(MeetupEndReason)
     }
 
@@ -32,6 +45,7 @@ public struct MeetupMachine: Equatable, Sendable {
     public static let playDuration: TimeInterval = 8
 
     public private(set) var phase: Phase = .idle
+    public private(set) var dance: Dance = .waiting
     public let version: Int
     private var me: PetCard
     private var peerInvited = false
@@ -42,10 +56,15 @@ public struct MeetupMachine: Equatable, Sendable {
     }
 
     public var peer: PetCard? {
-        switch phase {
-        case .inviting(let peer, _), .playing(let peer, _): peer
-        default: nil
-        }
+        if case .together(let peer, _) = phase { return peer }
+        return nil
+    }
+
+    public var isTogether: Bool { peer != nil }
+
+    public var isDancing: Bool {
+        if case .dancing = dance { return true }
+        return false
     }
 
     public var isFinished: Bool {
@@ -63,60 +82,63 @@ public struct MeetupMachine: Equatable, Sendable {
     public mutating func updateMe(_ card: PetCard) -> [Output] {
         let moodChanged = card.mood != me.mood
         me = card
-        switch phase {
-        case .inviting, .playing: return moodChanged ? [.send(.pose(card.mood))] : []
-        default: return []
-        }
+        return isTogether && moodChanged ? [.send(.pose(card.mood))] : []
+    }
+
+    /// Sends a present. Only while together.
+    public func send(_ gift: Gift) -> [Output] {
+        isTogether ? [.send(.gift(gift))] : []
+    }
+
+    /// Sends a game message. Only while together.
+    public func sendGame(_ message: MeetupMessage) -> [Output] {
+        isTogether ? [.send(message)] : []
     }
 
     public mutating func receive(_ message: MeetupMessage, at now: Date) -> [Output] {
         switch (phase, message) {
         case (.ended, _), (.idle, _):
             return []
-        case (.playing(let peer, let since), .goodbye(.finished)) where now.timeIntervalSince(since) >= Self.playDuration / 2:
-            // The other side's play timer ran out a moment before ours. Count it.
-            phase = .ended(.finished)
-            return [.playedTogether(peer: peer), .ended(.finished)]
         case (_, .goodbye(let reason)):
-            // Any other goodbye, including a "finished" that came too early, ends with no boost.
-            return end(reason == .finished ? .cancelled : reason, sayGoodbye: false)
+            return end(reason, sayGoodbye: false)
         case (.greeting, .hello(let version, let pet)):
             guard version == self.version else { return end(.versionMismatch, sayGoodbye: true) }
-            phase = .inviting(peer: pet, since: now)
+            phase = .together(peer: pet, since: now)
             // Say hello back, in case ours went out before the other side was
             // listening. A side that already has our hello ignores the repeat.
-            var out: [Output] = [.send(.hello(version: version, pet: me)), .send(.playInvite)]
-            if peerInvited { out += beginPlay(peer: pet, at: now) }
+            var out: [Output] = [.met(peer: pet), .send(.hello(version: version, pet: me)), .send(.playInvite)]
+            if peerInvited { out += beginDance(at: now) }
             return out
         case (.greeting, .playInvite):
             // The invite overtook the hello. Remember it.
             peerInvited = true
             return []
-        case (.inviting(let peer, _), .playInvite):
+        case (.together, .playInvite):
             peerInvited = true
-            return beginPlay(peer: peer, at: now)
-        case (.inviting(let peer, let since), .pose(let mood)):
-            phase = .inviting(peer: PetCard(name: peer.name, stage: peer.stage, mood: mood), since: since)
+            return dance == .waiting ? beginDance(at: now) : []
+        case (.together(let peer, let since), .pose(let mood)):
+            phase = .together(peer: PetCard(name: peer.name, stage: peer.stage, mood: mood), since: since)
             return []
-        case (.playing(let peer, let since), .pose(let mood)):
-            phase = .playing(peer: PetCard(name: peer.name, stage: peer.stage, mood: mood), since: since)
-            return []
+        case (.together(let peer, _), .gift(let gift)):
+            return [.receivedGift(gift, from: peer)]
+        case (.together, .gameInvite), (.together, .gameAccept), (.together, .gameMove), (.together, .gameQuit):
+            return [.game(message)]
         default:
-            // A repeated hello or invite, or a pose before hello: ignore.
+            // A repeated hello, or anything before hello: ignore.
             return []
         }
     }
 
-    /// Call regularly (every second or so) to run timeouts and finish play.
+    /// Call regularly (every second or so) to run the handshake timeout and the dance.
     public mutating func tick(at now: Date) -> [Output] {
         switch phase {
-        case .greeting(let since), .inviting(_, let since):
+        case .greeting(let since):
             if now.timeIntervalSince(since) >= Self.handshakeTimeout { return end(.timedOut, sayGoodbye: true) }
             return []
-        case .playing(let peer, let since):
-            guard now.timeIntervalSince(since) >= Self.playDuration else { return [] }
-            phase = .ended(.finished)
-            return [.playedTogether(peer: peer), .send(.goodbye(.finished)), .ended(.finished)]
+        case .together(let peer, _):
+            guard case .dancing(let since) = dance, now.timeIntervalSince(since) >= Self.playDuration else { return [] }
+            dance = .done
+            return [.playedTogether(peer: peer)]
         case .idle, .ended:
             return []
         }
@@ -127,13 +149,13 @@ public struct MeetupMachine: Equatable, Sendable {
         end(.disconnected, sayGoodbye: false)
     }
 
-    /// The player left the scene or turned meetups off.
-    public mutating func cancel() -> [Output] {
-        end(.cancelled, sayGoodbye: true)
+    /// The player said goodbye, left the scene or turned meetups off.
+    public mutating func leave() -> [Output] {
+        end(isTogether ? .finished : .cancelled, sayGoodbye: true)
     }
 
-    private mutating func beginPlay(peer: PetCard, at now: Date) -> [Output] {
-        phase = .playing(peer: peer, since: now)
+    private mutating func beginDance(at now: Date) -> [Output] {
+        dance = .dancing(since: now)
         return []
     }
 
@@ -143,33 +165,7 @@ public struct MeetupMachine: Equatable, Sendable {
         default: break
         }
         phase = .ended(reason)
+        if isDancing { dance = .waiting }
         return (sayGoodbye ? [.send(.goodbye(reason))] : []) + [.ended(reason)]
-    }
-}
-
-/// Remembers which pairs have had today's meetup boost. Saved by the app.
-public struct MeetupLedger: Codable, Equatable, Sendable {
-    /// Pair key to the day ("2026-10-17", in the player's calendar) of the last boost.
-    public private(set) var lastBoost: [String: String] = [:]
-
-    public init() {}
-
-    /// The happiness one meetup adds.
-    public static let boost: Meter = 0.15
-
-    /// Records a boost for `pair` and returns true, or returns false if this
-    /// pair already had one today.
-    public mutating func claim(pair: String, at now: Date, calendar: Calendar) -> Bool {
-        let day = Self.dayKey(now, calendar: calendar)
-        if lastBoost[pair] == day { return false }
-        lastBoost[pair] = day
-        // Keep the ledger small: drop days that are no longer today.
-        lastBoost = lastBoost.filter { $0.value == day }
-        return true
-    }
-
-    static func dayKey(_ date: Date, calendar: Calendar) -> String {
-        let c = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 }
