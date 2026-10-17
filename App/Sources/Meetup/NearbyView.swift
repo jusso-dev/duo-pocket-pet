@@ -8,8 +8,9 @@ struct NearbyView: View {
     let meetup: MeetupController
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
-    private var p: RetroPalette { .current(scheme) }
+    private var p: RetroPalette { .current(scheme, contrast) }
     private var petName: String { model.state.name }
 
     var body: some View {
@@ -37,8 +38,10 @@ struct NearbyView: View {
             .navigationTitle("Nearby")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                // Nothing to confirm here, so it's the system Close button (an
+                // X with a "Close" label for VoiceOver), as the HIG asks for sheets.
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close) { dismiss() }
                 }
             }
         }

@@ -11,22 +11,26 @@ extension RGB {
 }
 
 extension RetroPalette {
-    static func current(_ scheme: ColorScheme) -> RetroPalette {
-        scheme == .dark ? .backlight : .daylight
+    /// The palette for the colour scheme, with stronger ink when the player
+    /// has turned on Increase Contrast.
+    static func current(_ scheme: ColorScheme, _ contrast: ColorSchemeContrast = .standard) -> RetroPalette {
+        let base: RetroPalette = scheme == .dark ? .backlight : .daylight
+        return contrast == .increased ? base.increasedContrast : base
     }
 }
 
 extension EnvironmentValues {
     /// The retro palette for the current colour scheme.
-    var retro: RetroPalette { RetroPalette.current(colorScheme) }
+    var retro: RetroPalette { RetroPalette.current(colorScheme, colorSchemeContrast) }
 }
 
 /// The dusk sky behind every scene.
 struct RetroBackdrop: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         LinearGradient(colors: [p.backdropTop.color, p.backdropBottom.color], startPoint: .top, endPoint: .bottom)
             .ignoresSafeArea()
     }
@@ -68,9 +72,10 @@ struct SteppedRectangle: Shape {
 struct LCDPanel: ViewModifier {
     var padding: CGFloat = 12
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         content
             .padding(padding)
             .background {
@@ -234,10 +239,11 @@ private struct PixelTextLayout: Layout {
 /// A chunky keycap: a raised face on a darker base that presses down.
 struct KeycapButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         let pressed = configuration.isPressed
         configuration.label
             .foregroundStyle(p.keycapInk.color)
@@ -268,9 +274,10 @@ struct KeycapLabel: View {
     let title: String
     let icon: PixelIcon
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let ink = RetroPalette.current(scheme).keycapInk.color
+        let ink = RetroPalette.current(scheme, contrast).keycapInk.color
         HStack(spacing: 8) {
             PixelIconView(icon: icon, scale: 3, colour: ink)
             PixelText(text: title, size: 2, colour: ink, maxScale: 5)

@@ -7,9 +7,11 @@ struct StageView: View {
     let model: AppModel
     let angleDegrees: Double
     @State private var cheerMessage: String?
+    @State private var cheers = 0
     @State private var showingNearby = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var routine: StageRoutine { model.session.stageRoutine }
 
@@ -37,7 +39,7 @@ struct StageView: View {
     }
 
     private var stage: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         return ZStack {
             Curtains(colour: p.bezelHighlight.color)
             Spotlight(
@@ -70,13 +72,14 @@ struct StageView: View {
     }
 
     private var audience: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         return VStack(spacing: 12) {
             Button { cheer() } label: {
                 KeycapLabel(title: "Cheer", icon: .burst)
             }
             .buttonStyle(KeycapButtonStyle())
             .frame(maxWidth: 240)
+            .sensoryFeedback(.impact(weight: .medium), trigger: cheers)
             .accessibilityLabel("Cheer")
             .accessibilityHint("Cheers for \(model.state.name). Raises happiness, once every 30 seconds.")
             if let cheerMessage {
@@ -98,6 +101,7 @@ struct StageView: View {
     private func cheer() {
         let message = model.cheer().message(petName: model.state.name)
         cheerMessage = message
+        cheers += 1
         AccessibilityNotification.Announcement(message).post()
     }
 }

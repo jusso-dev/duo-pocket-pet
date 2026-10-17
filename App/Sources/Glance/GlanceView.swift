@@ -9,9 +9,10 @@ import SwiftUI
 struct GlanceView: View {
     let state: PetState
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var content: GlanceContent { GlanceContent(state: state) }
-    private var palette: RetroPalette { .current(scheme) }
+    private var palette: RetroPalette { .current(scheme, contrast) }
 
     var body: some View {
         // Side by side when there's room (landscape), stacked otherwise, and a

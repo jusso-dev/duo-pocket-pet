@@ -122,3 +122,20 @@ struct PixelFontLimitTests {
         #expect(PixelFont.layout("BIP", maxWidth: .max - 1).width == 17)
     }
 }
+
+@Suite("Increase Contrast")
+struct IncreasedContrastTests {
+    @Test(arguments: [RetroPalette.daylight, RetroPalette.backlight])
+    func gridGoesAndSoftTextGetsFullInk(palette: RetroPalette) {
+        let strong = palette.increasedContrast
+        #expect(strong.lcdGhost == strong.lcd)
+        #expect(strong.inkSoft == strong.ink)
+        for pair in strong.textPairs {
+            #expect(pair.foreground.contrast(against: pair.background) >= 4.5, "\(pair.name)")
+        }
+        // Every text pair is at least as strong as before.
+        for (before, after) in zip(palette.textPairs, strong.textPairs) {
+            #expect(after.foreground.contrast(against: after.background) >= before.foreground.contrast(against: before.background))
+        }
+    }
+}

@@ -53,6 +53,16 @@ public struct RetroPalette: Equatable, Sendable {
         backdropInk: hex(0xF4E6CB)
     )
 
+    /// The same palette for Increase Contrast: the unlit-pixel grid is hidden
+    /// and secondary text uses the full ink colour.
+    public var increasedContrast: RetroPalette {
+        var p = self
+        p.lcdGhost = lcd
+        p.inkSoft = ink
+        p.keycapShadow = keycapInk
+        return p
+    }
+
     /// Pairs that carry text, with the contrast each must reach (WCAG AA, 4.5:1).
     public var textPairs: [(name: String, foreground: RGB, background: RGB)] {
         [

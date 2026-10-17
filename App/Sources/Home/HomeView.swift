@@ -11,10 +11,12 @@ struct HomeView: View {
     var showsBedtime = false
     @State private var reaction: PetReactionCue?
     @State private var showingNearby = false
+    @State private var outcome = ActionOutcome()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
-    private var palette: RetroPalette { .current(scheme) }
+    private var palette: RetroPalette { .current(scheme, contrast) }
 
     var body: some View {
         layout
@@ -22,6 +24,11 @@ struct HomeView: View {
                 if let meetup = model.meetup {
                     NearbyView(model: model, meetup: meetup)
                 }
+            }
+            // A light tap for something that worked, a different one for a
+            // refusal, so the result is felt as well as seen and heard.
+            .sensoryFeedback(trigger: outcome) { _, new in
+                new.count == 0 ? nil : (new.applied ? .success : .warning)
             }
     }
 
@@ -171,6 +178,7 @@ struct HomeView: View {
 
     private func perform(_ action: PetAction, reaction kind: PetReaction?) {
         let result = model.perform(action)
+        outcome = ActionOutcome(count: outcome.count + 1, applied: result == .applied)
         if result == .applied, let kind {
             reaction = PetReactionCue(reaction: kind, startedAt: .now)
         }
@@ -179,11 +187,19 @@ struct HomeView: View {
     }
 }
 
+/// The latest action's result, for haptics. The count makes every tap a
+/// change, even when the result is the same as last time.
+private struct ActionOutcome: Equatable {
+    var count = 0
+    var applied = false
+}
+
 /// The line above the pet: name, life stage, day count and a mood icon, like
 /// the status row on an old handheld. One VoiceOver element.
 struct StatusStrip: View {
     let state: PetState
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var content: GlanceContent { GlanceContent(state: state) }
     private var day: Int { Int(state.ageSeconds / 86_400) + 1 }
@@ -194,7 +210,7 @@ struct StatusStrip: View {
     }
 
     var body: some View {
-        let ink = RetroPalette.current(scheme).backdropInk.color
+        let ink = RetroPalette.current(scheme, contrast).backdropInk.color
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 12) {
                 PixelText(text: content.name, size: 3, colour: ink).fixedSize()
@@ -284,9 +300,10 @@ struct NeedsPanel: View {
     let state: PetState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 // Label above bar, so long labels don't squeeze the bars off screen.

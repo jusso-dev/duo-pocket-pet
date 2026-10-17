@@ -24,7 +24,8 @@ targets:
       path: Generated/Info.plist
       properties:
         CFBundleDisplayName: Hingeling
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         UIApplicationSupportsMultipleScenes: true
         NSLocalNetworkUsageDescription: Hingeling looks for other Hingeling pets nearby so they can play together. Only your pet's name, life stage and mood are shared.
         NSBonjourServices:
