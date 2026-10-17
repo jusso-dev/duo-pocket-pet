@@ -26,7 +26,7 @@ Package.swift                  Swift package for the platform-free logic
 Sources/PocketPetCore/         Pet model, decay and ageing, persistence, fold postures, scene state machine
 Tests/PocketPetCoreTests/      Tests that run on Linux and macOS (`swift test`)
 App/                           SwiftUI iOS app (XcodeGen `project.yml`), needs a Mac
-ci/workflows/                  CI workflows, to be moved into .github/workflows
+.github/workflows/             CI: core tests and the app build on the hosted xcode-27 image
 scripts/                       Helper scripts, including the Mac build and test script
 ```
 
@@ -48,7 +48,7 @@ brew install xcodegen
 scripts/mac-build-and-test.sh
 ```
 
-The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on an iPhone simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later.
+The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on the newest available iPhone simulator, or on the one you name (`scripts/mac-build-and-test.sh "iPhone 18 Pro"`). Set `DUO_SIM` to also test on an iPhone Duo simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later.
 
 ## Fold APIs: verified and assumed
 
