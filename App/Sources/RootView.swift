@@ -8,12 +8,16 @@ import SwiftUI
 /// separate outer-display API involved.
 struct RootView: View {
     let model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         content
             .animation(.snappy, value: model.scene)
             .task { await model.run() }
             .modifier(OptionalHingeReader(service: model.hinge))
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { model.enteredBackground() }
+            }
     }
 
     @ViewBuilder private var content: some View {

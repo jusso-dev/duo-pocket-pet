@@ -71,6 +71,12 @@ final class AppModel {
         session.apply(posture, at: clock())
     }
 
+    /// Writes any half-fold angle changes that are only in memory. Called when
+    /// the scene leaves the foreground, so nothing is lost if the app is killed.
+    func enteredBackground() {
+        session.saveIfNeeded()
+    }
+
     @discardableResult
     func perform(_ action: PetAction) -> ActionResult {
         let result = session.perform(action, at: clock())

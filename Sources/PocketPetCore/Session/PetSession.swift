@@ -2,7 +2,11 @@ import Foundation
 
 /// Ties the engine, the scene machine and the store together. The app's
 /// view model owns one of these and forwards fold changes and button taps.
-/// Every change is saved straight away.
+///
+/// Button taps, ticks, sleeping, waking and changes of scene kind are saved
+/// straight away. A hinge that only moves within the half fold is not: those
+/// changes are kept in memory until the next save, the next tick, or
+/// `saveIfNeeded()` when the app goes to the background.
 public struct PetSession {
     public private(set) var engine: PetEngine
     public private(set) var machine = PetSceneMachine()
@@ -16,6 +20,9 @@ public struct PetSession {
     /// False when an unreadable save could not be moved aside. The session then
     /// runs in memory only and never writes over the old file.
     public let isSavingEnabled: Bool
+
+    /// True when the in-memory pet has changes that are not on disk yet.
+    public private(set) var hasUnsavedChanges = false
 
     public var state: PetState { engine.state }
     public var scene: PetScene { machine.scene ?? .standard }
@@ -62,14 +69,34 @@ public struct PetSession {
     }
 
     public mutating func apply(_ posture: FoldPosture, at now: Date) {
-        for effect in machine.handle(posture) {
+        let previous = machine.scene
+        let effects = machine.handle(posture)
+        for effect in effects {
             switch effect {
             case .putToSleep: engine.sleep(at: now)
             case .wakeUp: engine.wake(at: now)
             }
         }
         engine.tick(to: now)
-        save()
+        if !effects.isEmpty || !PetSession.isSameKind(previous, machine.scene) {
+            save()
+        } else {
+            // Only the angle moved, or nothing changed. The 30 second tick or
+            // the background save picks this up.
+            hasUnsavedChanges = true
+        }
+    }
+
+    /// Saves if anything is waiting. Call when the app goes to the background.
+    public mutating func saveIfNeeded() {
+        if hasUnsavedChanges { save() }
+    }
+
+    private static func isSameKind(_ a: PetScene?, _ b: PetScene?) -> Bool {
+        switch (a, b) {
+        case (.stage?, .stage?): true
+        default: a == b
+        }
     }
 
     @discardableResult
@@ -89,6 +116,7 @@ public struct PetSession {
         do {
             try store.save(engine.state)
             lastSaveError = nil
+            hasUnsavedChanges = false
         } catch {
             lastSaveError = String(describing: error)
         }

@@ -42,6 +42,18 @@ struct AppModelTests {
         #expect(model.perform(.play) != .refused(.asleep))
     }
 
+    @Test func backgroundSavesPendingHalfFoldChanges() throws {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        let model = AppModel(store: store, fold: MockFoldStateService(initial: .partiallyOpen(angleDegrees: 90)), clock: { [t0] in t0 })
+        model.apply(.partiallyOpen(angleDegrees: 110))
+        model.apply(.partiallyOpen(angleDegrees: 130))
+        let before = store.saveCount
+        #expect(model.session.hasUnsavedChanges)
+        model.enteredBackground()
+        #expect(store.saveCount == before + 1)
+        #expect(!model.session.hasUnsavedChanges)
+    }
+
     @Test func noHingeUsesStandardLayout() {
         let model = AppModel(store: InMemoryPetStore(), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
         #expect(model.scene == .standard)

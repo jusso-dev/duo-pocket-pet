@@ -109,6 +109,50 @@ struct PetSessionTests {
         #expect(session.state.isAsleep)
     }
 
+    /// A slow open sends a half-fold reading every 2 degrees. Only the change
+    /// of scene should hit the disk, not every angle.
+    @Test func hingeWobbleDoesNotSaveEveryAngle() {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.closed, at: t0)
+        let before = store.saveCount
+        var clock = t0
+        for angle in stride(from: 10.0, through: 170.0, by: 2.0) {
+            clock = clock.addingTimeInterval(0.05)
+            session.apply(.partiallyOpen(angleDegrees: angle), at: clock)
+        }
+        // Closed to half fold wakes the pet: one save. The other 80 angles: none.
+        #expect(store.saveCount == before + 1)
+        #expect(session.scene == .stage(angleDegrees: 170))
+        session.apply(.open, at: clock)
+        #expect(store.saveCount == before + 2)
+    }
+
+    @Test func pendingAngleChangesSaveOnDemand() throws {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.partiallyOpen(angleDegrees: 90), at: t0)
+        session.apply(.partiallyOpen(angleDegrees: 100), at: hours(0.1))
+        #expect(session.hasUnsavedChanges)
+        let before = store.saveCount
+        session.saveIfNeeded()
+        #expect(store.saveCount == before + 1)
+        #expect(try store.load()?.lastUpdated == hours(0.1))
+        #expect(!session.hasUnsavedChanges)
+        session.saveIfNeeded()
+        #expect(store.saveCount == before + 1)
+    }
+
+    @Test func tickStillSavesPendingChanges() throws {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.partiallyOpen(angleDegrees: 90), at: t0)
+        session.apply(.partiallyOpen(angleDegrees: 120), at: t0)
+        session.tick(to: hours(1))
+        #expect(!session.hasUnsavedChanges)
+        #expect(try store.load()?.lastUpdated == hours(1))
+    }
+
     @Test func homeActionsApplyAndSave() {
         let store = InMemoryPetStore(PetState(hunger: 0.8, happiness: 0.4, energy: 0.6, hygiene: 0.4, bornAt: t0))
         var session = PetSession(store: store, now: t0)
