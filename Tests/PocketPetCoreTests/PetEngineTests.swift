@@ -48,7 +48,21 @@ struct PetEngineTests {
         engine.tick(to: hours(-3))
         #expect(engine.state.hunger == before.hunger)
         #expect(engine.state.ageSeconds == 0)
-        #expect(engine.state.lastUpdated == hours(-3))
+        #expect(engine.state.lastUpdated == t0)
+    }
+
+    /// The repro from the review: tick to +1 h, back to t0, then +1 h again.
+    /// The age used to be 2 h because the hour was counted twice.
+    @Test func clockGoingBackwardsNeverCountsTimeTwice() {
+        var engine = PetEngine(state: .newborn(at: t0))
+        engine.tick(to: hours(1))
+        let afterOneHour = engine.state
+        engine.tick(to: t0)
+        engine.tick(to: hours(1))
+        #expect(engine.state.ageSeconds == 3600)
+        #expect(engine.state == afterOneHour)
+        engine.tick(to: hours(2))
+        #expect(engine.state.ageSeconds == 2 * 3600)
     }
 
     @Test func longGapsCapDecayButStillAge() {
