@@ -30,24 +30,56 @@ public struct PetCard: Codable, Equatable, Sendable {
     }
 }
 
+/// A present one pet sends another.
+public enum Gift: String, Codable, CaseIterable, Sendable {
+    /// Lowers hunger a little.
+    case snack
+    /// Raises happiness a little.
+    case toy
+    /// Freshens up: raises cleanliness a little.
+    case bath
+}
+
+/// A move in Leaf, Pebble, Twig: leaf wraps pebble, pebble snaps twig, twig pokes through leaf.
+public enum GameMove: String, Codable, CaseIterable, Sendable {
+    case leaf
+    case pebble
+    case twig
+
+    /// True when this move beats `other`.
+    public func beats(_ other: GameMove) -> Bool {
+        switch (self, other) {
+        case (.leaf, .pebble), (.pebble, .twig), (.twig, .leaf): true
+        default: false
+        }
+    }
+}
+
 /// The meetup message set. Small, versioned and Codable.
 public enum MeetupMessage: Equatable, Sendable {
     /// First message each side sends, with its protocol version.
     case hello(version: Int, pet: PetCard)
     /// The pet's mood changed while together.
     case pose(Mood)
-    /// Ready to play. Play starts once both sides have sent this.
+    /// Ready to dance together. The dance starts once both sides have sent this.
     case playInvite
+    /// A present for the other pet.
+    case gift(Gift)
+    /// Leaf, Pebble, Twig: ask to play, agree, a move for a round, or stop.
+    case gameInvite
+    case gameAccept
+    case gameMove(round: Int, move: GameMove)
+    case gameQuit
     /// Leaving, with the reason.
     case goodbye(MeetupEndReason)
 }
 
 public enum MeetupEndReason: String, Codable, Equatable, Sendable {
-    /// Played together and said goodbye.
+    /// Said goodbye after spending time together.
     case finished
     /// The other side speaks a different protocol version.
     case versionMismatch
-    /// No hello or no invite in time.
+    /// No hello in time.
     case timedOut
     /// The connection dropped part way.
     case disconnected
@@ -65,6 +97,9 @@ public enum MeetupCodec {
         var pet: PetCard?
         var mood: Mood?
         var reason: MeetupEndReason?
+        var gift: Gift?
+        var round: Int?
+        var move: GameMove?
     }
 
     public static func encode(_ message: MeetupMessage) throws -> Data {
@@ -72,6 +107,11 @@ public enum MeetupCodec {
         case .hello(let version, let pet): Wire(type: "hello", version: version, pet: pet)
         case .pose(let mood): Wire(type: "pose", mood: mood)
         case .playInvite: Wire(type: "playInvite")
+        case .gift(let gift): Wire(type: "gift", gift: gift)
+        case .gameInvite: Wire(type: "gameInvite")
+        case .gameAccept: Wire(type: "gameAccept")
+        case .gameMove(let round, let move): Wire(type: "gameMove", round: round, move: move)
+        case .gameQuit: Wire(type: "gameQuit")
         case .goodbye(let reason): Wire(type: "goodbye", reason: reason)
         }
         let encoder = JSONEncoder()
@@ -90,6 +130,17 @@ public enum MeetupCodec {
             return wire.mood.map(MeetupMessage.pose)
         case "playInvite":
             return .playInvite
+        case "gift":
+            return wire.gift.map(MeetupMessage.gift)
+        case "gameInvite":
+            return .gameInvite
+        case "gameAccept":
+            return .gameAccept
+        case "gameMove":
+            guard let round = wire.round, let move = wire.move, (1...99).contains(round) else { return nil }
+            return .gameMove(round: round, move: move)
+        case "gameQuit":
+            return .gameQuit
         case "goodbye":
             return .goodbye(wire.reason ?? .cancelled)
         default:
