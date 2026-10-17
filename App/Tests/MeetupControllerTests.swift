@@ -151,6 +151,9 @@ struct MeetupControllerTests {
         let (a, b, _, _) = await pair(clock: clock)
         #expect(a.meetup?.friend?.name == "Moss")
         #expect(a.meetup?.pals.pals.first?.card.name == "Moss")
+        // Greeting comes before the dance invites land, so wait for both pets to
+        // be dancing before moving the clock, or the dance starts at the new time.
+        #expect(await eventually { a.meetup?.isDancing == true && b.meetup?.isDancing == true })
         let before = (a.state.happiness, b.state.happiness)
         clock.now = t0.addingTimeInterval(MeetupMachine.playDuration + 1)
         #expect(await eventually { (a.meetup?.news ?? "").contains("lovely dance") && (b.meetup?.news ?? "").contains("lovely dance") })
