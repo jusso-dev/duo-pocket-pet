@@ -27,7 +27,8 @@ Sources/PocketPetCore/         Pet model, decay and ageing, persistence, fold po
 Tests/PocketPetCoreTests/      Tests that run on Linux and macOS (`swift test`)
 App/                           SwiftUI iOS app (XcodeGen `project.yml`), unit tests in `App/Tests`, UI tests in `App/UITests`, needs a Mac
 .github/workflows/             CI: core tests on Linux, plus core tests and the app build on the hosted xcode-27 image
-scripts/                       Helper scripts, including the Mac build and test script
+scripts/                       Helper scripts: Mac build and test, App Store screenshots
+marketing/                     Prepared, unpublished marketing material (screenshots, demo clip plan)
 ```
 
 The rule of thumb: anything that can be tested without UIKit or SwiftUI lives in `PocketPetCore`. The app target only adapts system APIs into the core types and draws the UI.

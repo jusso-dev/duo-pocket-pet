@@ -8,3 +8,4 @@ build/
 xcuserdata/
 *.xcresult
 Package.resolved
+marketing/screenshots/out/
