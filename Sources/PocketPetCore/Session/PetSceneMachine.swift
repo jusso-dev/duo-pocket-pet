@@ -10,6 +10,23 @@ public enum PetScene: Equatable, Sendable {
     case standard
 }
 
+extension PetScene {
+    /// The scene without its angle. Two half-fold scenes at different angles
+    /// are the same kind, so animations and saves key on this, not on every degree.
+    public enum Kind: Equatable, Hashable, Sendable {
+        case glance, home, stage, standard
+    }
+
+    public var kind: Kind {
+        switch self {
+        case .glance: .glance
+        case .home: .home
+        case .stage: .stage
+        case .standard: .standard
+        }
+    }
+}
+
 /// Side effects a posture change asks for.
 public enum SceneEffect: Equatable, Sendable {
     case putToSleep

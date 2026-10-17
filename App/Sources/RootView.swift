@@ -9,10 +9,13 @@ import SwiftUI
 struct RootView: View {
     let model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content
-            .animation(.snappy, value: model.scene)
+            // Key on the kind, so a folding hinge doesn't restart the animation
+            // every 2 degrees, and skip it entirely with Reduce Motion on.
+            .animation(reduceMotion ? nil : .snappy, value: model.scene.kind)
             .task { await model.run() }
             .modifier(OptionalHingeReader(service: model.hinge))
             .safeAreaInset(edge: .top) {

@@ -93,10 +93,7 @@ public struct PetSession {
     }
 
     private static func isSameKind(_ a: PetScene?, _ b: PetScene?) -> Bool {
-        switch (a, b) {
-        case (.stage?, .stage?): true
-        default: a == b
-        }
+        a?.kind == b?.kind
     }
 
     @discardableResult

@@ -49,7 +49,9 @@ final class AppModel {
         let store = makeStore()
         #if targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("-mockFold") {
-            let mock = MockFoldStateService(initial: .closed)
+            // Start like the live hinge service, which reports `.unavailable`
+            // until its first callback. The demo script then closes it at once.
+            let mock = MockFoldStateService(initial: .unavailable)
             Task { await mock.play(MockFoldStateService.demoScript) }
             return AppModel(store: store, fold: mock)
         }
@@ -152,6 +154,24 @@ final class AppModel {
         let result = session.perform(action, at: clock())
         if case .refused(let reason) = result { lastRefusal = reason } else { lastRefusal = nil }
         return result
+    }
+}
+
+extension ActionResult {
+    /// What VoiceOver should say after a button tap, applied or refused.
+    func announcement(for action: PetAction, petName: String) -> String {
+        switch self {
+        case .refused(let reason):
+            return reason.message(petName: petName)
+        case .applied:
+            switch action {
+            case .feed: return "You fed \(petName)."
+            case .clean: return "\(petName) is squeaky clean."
+            case .play: return "You played with \(petName)."
+            case .sleep: return "\(petName) is going to sleep."
+            case .wake: return "\(petName) is awake."
+            }
+        }
     }
 }
 
