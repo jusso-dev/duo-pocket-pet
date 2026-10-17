@@ -184,11 +184,16 @@ struct MeetupLedgerTests {
     }
 
     @Test func oncePerPairPerDay() {
+        // `claim` is mutating, which #expect can't call directly, so each result is taken first.
         var ledger = MeetupLedger()
-        #expect(ledger.claim(pair: "a+b", at: t0, calendar: utc))
-        #expect(!ledger.claim(pair: "a+b", at: t0.addingTimeInterval(3600), calendar: utc))
-        #expect(ledger.claim(pair: "a+c", at: t0.addingTimeInterval(3600), calendar: utc))
-        #expect(ledger.claim(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc))
+        let first = ledger.claim(pair: "a+b", at: t0, calendar: utc)
+        let sameDay = ledger.claim(pair: "a+b", at: t0.addingTimeInterval(3600), calendar: utc)
+        let otherPair = ledger.claim(pair: "a+c", at: t0.addingTimeInterval(3600), calendar: utc)
+        let nextDay = ledger.claim(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc)
+        #expect(first)
+        #expect(!sameDay)
+        #expect(otherPair)
+        #expect(nextDay)
     }
 
     @Test func boostRaisesHappinessAndSaves() {
