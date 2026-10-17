@@ -8,6 +8,7 @@ struct StageView: View {
     let angleDegrees: Double
     @State private var cheerMessage: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     private var routine: StageRoutine { model.session.stageRoutine }
 
@@ -26,43 +27,52 @@ struct StageView: View {
     }
 
     private var stage: some View {
-        ZStack {
-            Color.black.opacity(0.85)
+        let p = RetroPalette.current(scheme)
+        return ZStack {
+            Curtains(colour: p.bezelHighlight.color)
             Spotlight(
                 tilt: reduceMotion ? 0 : StageLighting.spotlightTilt(hingeDegrees: angleDegrees),
-                intensity: StageLighting.spotlightIntensity(hingeDegrees: angleDegrees)
+                intensity: StageLighting.spotlightIntensity(hingeDegrees: angleDegrees),
+                colour: p.lcdGhost.color
             )
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
-                    PetSpriteView(state: model.state, onStage: routine.usesStageFrames, maxScale: 10)
+                    PetSpriteView(state: model.state, onStage: routine.usesStageFrames, maxScale: 10, halo: halo)
                     if let friend = model.meetup?.status.friend {
                         // A visiting pet dances alongside.
-                        PetSpriteView(state: .sample(mood: friend.mood, stage: friend.stage, name: friend.name), onStage: true, maxScale: 10)
+                        PetSpriteView(state: .sample(mood: friend.mood, stage: friend.stage, name: friend.name), onStage: true, maxScale: 10, halo: halo)
                     }
                 }
-                Text(routine.caption(petName: model.state.name))
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                PixelText(text: routine.caption(petName: model.state.name), size: 2, colour: p.ink.color, alignment: .centre)
             }
-            .padding()
+            .padding(.horizontal, 36)
+            .padding(.vertical)
         }
+        .lcdPanel(padding: 0)
+        .padding()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(routine.caption(petName: model.state.name))
         .accessibilityIdentifier("stage")
     }
 
+    private var halo: Color? {
+        scheme == .dark ? RetroPalette.backlight.inkSoft.color.opacity(0.55) : nil
+    }
+
     private var audience: some View {
-        VStack(spacing: 12) {
-            Button("Cheer", systemImage: "hands.clap") { cheer() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .accessibilityHint("Cheers for \(model.state.name). Raises happiness, once every 30 seconds.")
+        let p = RetroPalette.current(scheme)
+        return VStack(spacing: 12) {
+            Button { cheer() } label: {
+                KeycapLabel(title: "Cheer", icon: .burst)
+            }
+            .buttonStyle(KeycapButtonStyle())
+            .frame(maxWidth: 240)
+            .accessibilityLabel("Cheer")
+            .accessibilityHint("Cheers for \(model.state.name). Raises happiness, once every 30 seconds.")
             if let cheerMessage {
                 Text(cheerMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .font(.callout.monospaced())
+                    .foregroundStyle(p.backdropInk.color)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -82,30 +92,54 @@ struct StageView: View {
     }
 }
 
-/// A soft cone of light from above, tilted by the hinge.
+/// A dithered cone of light from above, tilted by the hinge. Every other
+/// pixel is lit, like light on an old LCD.
 private struct Spotlight: View {
     let tilt: Double
     let intensity: Double
+    let colour: Color
 
     var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-            Path { path in
-                path.move(to: CGPoint(x: w / 2 - 12, y: 0))
-                path.addLine(to: CGPoint(x: w / 2 + 12, y: 0))
-                path.addLine(to: CGPoint(x: w / 2 + w * 0.35, y: h))
-                path.addLine(to: CGPoint(x: w / 2 - w * 0.35, y: h))
-                path.closeSubpath()
+        Canvas(rendersAsynchronously: true) { context, size in
+            let w = size.width, h = size.height
+            var path = Path()
+            var y: CGFloat = 0
+            while y < h {
+                let half = 10 + (y / h) * w * 0.32
+                var x = (w / 2 - half).rounded(.down)
+                while x < w / 2 + half {
+                    if (Int(x / 4) + Int(y / 4)) % 2 == 0 {
+                        path.addRect(CGRect(x: x, y: y, width: 3, height: 3))
+                    }
+                    x += 4
+                }
+                y += 4
             }
-            .fill(
-                LinearGradient(
-                    colors: [Color.yellow.opacity(0.55 * intensity), Color.yellow.opacity(0.08 * intensity)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .rotationEffect(.degrees(tilt), anchor: .top)
+            context.fill(path, with: .color(colour.opacity(0.4 + 0.6 * intensity)))
+        }
+        .rotationEffect(.degrees(tilt), anchor: .top)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Pleated pixel curtains down both sides of the stage.
+private struct Curtains: View {
+    let colour: Color
+
+    var body: some View {
+        Canvas(rendersAsynchronously: true) { context, size in
+            let curtain = min(36, size.width * 0.12)
+            var path = Path()
+            for side in [0, 1] {
+                var x: CGFloat = 0
+                while x < curtain {
+                    // Pleats: a lit stripe every 6 pixels, wider at the hem.
+                    path.addRect(CGRect(x: side == 0 ? x : size.width - x - 3, y: 0, width: 3, height: size.height))
+                    x += 6
+                }
+            }
+            context.fill(path, with: .color(colour))
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)

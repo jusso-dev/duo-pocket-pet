@@ -18,6 +18,8 @@ struct PetSpriteView: View {
     var reaction: PetReactionCue?
     /// Upper bound on the scale, so the sprite doesn't fill a whole iPad.
     var maxScale = 12
+    /// A glowing one-pixel edge, for dark screens where the outline would vanish.
+    var halo: Color?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -26,7 +28,7 @@ struct PetSpriteView: View {
             let scale = Self.scale(for: proxy.size, maxScale: maxScale)
             let side = CGFloat(PixelFrame.size * scale)
             TimelineView(.periodic(from: .now, by: tickInterval)) { timeline in
-                PixelCanvas(frame: animator.frame(at: timeline.date, reduceMotion: reduceMotion), scale: scale)
+                PixelCanvas(frame: animator.frame(at: timeline.date, reduceMotion: reduceMotion), scale: scale, halo: halo)
                     .frame(width: side, height: side)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -59,10 +61,21 @@ struct PetSpriteView: View {
 private struct PixelCanvas: View {
     let frame: PixelFrame
     let scale: Int
+    var halo: Color?
 
     var body: some View {
         Canvas(rendersAsynchronously: false) { context, _ in
             let s = CGFloat(scale)
+            if let halo {
+                let edge = frame.halo
+                var path = Path()
+                for y in 0..<edge.height {
+                    for x in 0..<edge.width where edge[x, y] {
+                        path.addRect(CGRect(x: CGFloat(x) * s, y: CGFloat(y) * s, width: s, height: s))
+                    }
+                }
+                context.fill(path, with: .color(halo))
+            }
             for y in 0..<frame.height {
                 for x in 0..<frame.width {
                     guard let colour = PixelPalette.colour(for: frame[x, y]) else { continue }

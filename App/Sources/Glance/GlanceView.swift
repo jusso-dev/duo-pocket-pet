@@ -1,6 +1,5 @@
 import PocketPetCore
 import SwiftUI
-import UIKit
 
 /// The compact view shown while an iPhone Duo is closed.
 ///
@@ -9,8 +8,10 @@ import UIKit
 /// reads as one VoiceOver element, for example "Bip is asleep".
 struct GlanceView: View {
     let state: PetState
+    @Environment(\.colorScheme) private var scheme
 
     private var content: GlanceContent { GlanceContent(state: state) }
+    private var palette: RetroPalette { .current(scheme) }
 
     var body: some View {
         // Side by side when there's room (landscape), stacked otherwise, and a
@@ -33,6 +34,8 @@ struct GlanceView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .lcdPanel()
+        .padding()
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(content.accessibilityLabel)
@@ -41,38 +44,27 @@ struct GlanceView: View {
     }
 
     private func sprite(min side: CGFloat) -> some View {
-        PetSpriteView(state: state, maxScale: 8)
+        PetSpriteView(state: state, maxScale: 8, halo: scheme == .dark ? palette.inkSoft.color.opacity(0.55) : nil)
             .frame(minWidth: side, idealWidth: 192, maxWidth: 192, minHeight: side, idealHeight: 192, maxHeight: 192)
     }
 
+    private var moodIcon: PixelIcon {
+        if state.isAsleep { return .moon }
+        return content.needsAttention ? .attention : .leaf
+    }
+
     private func labels(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 6) {
-            Text(content.name)
-                .font(.title.bold())
-                .multilineTextAlignment(alignment == .center ? .center : .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(content.stageLabel)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Label {
-                Text(content.moodLine)
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: content.needsAttention ? "exclamationmark.circle.fill" : "leaf.fill")
+        let pixelAlignment: PixelFont.Alignment = alignment == .center ? .centre : .leading
+        let moodColour = content.needsAttention ? palette.alert.color : palette.ink.color
+        return VStack(alignment: alignment, spacing: 10) {
+            PixelText(text: content.name, size: 5, colour: palette.ink.color, alignment: pixelAlignment)
+            PixelText(text: content.stageLabel, size: 2, colour: palette.inkSoft.color, alignment: pixelAlignment)
+            HStack(spacing: 8) {
+                PixelIconView(icon: moodIcon, scale: 2, colour: moodColour)
+                PixelText(text: content.moodLine, size: 2, colour: moodColour)
             }
-            .font(.headline)
-            .foregroundStyle(content.needsAttention ? Color.glanceAttention : Color.secondary)
         }
     }
-}
-
-extension Color {
-    /// Burnt orange in light mode and bright orange in dark mode, both at least
-    /// 4.5:1 on the system background. See `GlanceStyle`.
-    static let glanceAttention = Color(uiColor: UIColor { traits in
-        let c = traits.userInterfaceStyle == .dark ? GlanceStyle.attentionDark : GlanceStyle.attentionLight
-        return UIColor(red: c.red, green: c.green, blue: c.blue, alpha: 1)
-    })
 }
 
 // MARK: - Previews

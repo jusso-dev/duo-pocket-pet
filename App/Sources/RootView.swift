@@ -13,6 +13,7 @@ struct RootView: View {
 
     var body: some View {
         content
+            .background(RetroBackdrop())
             // Key on the kind, so a folding hinge doesn't restart the animation
             // every 2 degrees, and skip it entirely with Reduce Motion on.
             .animation(reduceMotion ? nil : .snappy, value: model.scene.kind)
