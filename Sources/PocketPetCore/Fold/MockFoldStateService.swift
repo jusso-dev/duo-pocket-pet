@@ -1,26 +1,14 @@
 import Foundation
 
-/// A scriptable fold service for tests, previews and the simulator.
-///
-/// `send(_:)` pushes a posture to every open stream. `play(_:)` runs a script
-/// of postures with delays, for demos and UI tests.
-public final class MockFoldStateService: FoldStateService, @unchecked Sendable {
-    public struct Step: Sendable, Equatable {
-        public var posture: FoldPosture
-        public var delay: Duration
-
-        public init(_ posture: FoldPosture, after delay: Duration = .zero) {
-            self.posture = posture
-            self.delay = delay
-        }
-    }
-
+/// A thread-safe fold service that pushes each `send(_:)` to every open
+/// stream. The app's hinge adapter and `MockFoldStateService` build on it.
+open class BroadcastFoldStateService: FoldStateService, @unchecked Sendable {
     private let lock = NSLock()
     private var _current: FoldPosture
     private var continuations: [UUID: AsyncStream<FoldPosture>.Continuation] = [:]
     private var _history: [FoldPosture] = []
 
-    public init(initial: FoldPosture = .open) {
+    public init(initial: FoldPosture) {
         _current = initial
     }
 
@@ -61,15 +49,6 @@ public final class MockFoldStateService: FoldStateService, @unchecked Sendable {
         for continuation in targets { continuation.yield(posture) }
     }
 
-    /// Plays a script in order, waiting each step's delay before sending it.
-    public func play(_ steps: [Step]) async {
-        for step in steps {
-            if step.delay > .zero { try? await Task.sleep(for: step.delay) }
-            if Task.isCancelled { return }
-            send(step.posture)
-        }
-    }
-
     /// Ends every open stream.
     public func finish() {
         let targets: [AsyncStream<FoldPosture>.Continuation] = lock.withLock {
@@ -77,6 +56,35 @@ public final class MockFoldStateService: FoldStateService, @unchecked Sendable {
             return Array(continuations.values)
         }
         for continuation in targets { continuation.finish() }
+    }
+}
+
+/// A scriptable fold service for tests, previews and the simulator.
+///
+/// `send(_:)` pushes a posture to every open stream. `play(_:)` runs a script
+/// of postures with delays, for demos and UI tests.
+public final class MockFoldStateService: BroadcastFoldStateService, @unchecked Sendable {
+    public struct Step: Sendable, Equatable {
+        public var posture: FoldPosture
+        public var delay: Duration
+
+        public init(_ posture: FoldPosture, after delay: Duration = .zero) {
+            self.posture = posture
+            self.delay = delay
+        }
+    }
+
+    public override init(initial: FoldPosture = .open) {
+        super.init(initial: initial)
+    }
+
+    /// Plays a script in order, waiting each step's delay before sending it.
+    public func play(_ steps: [Step]) async {
+        for step in steps {
+            if step.delay > .zero { try? await Task.sleep(for: step.delay) }
+            if Task.isCancelled { return }
+            send(step.posture)
+        }
     }
 
     /// A short loop used by previews and demos: closed, open, half fold, closed.

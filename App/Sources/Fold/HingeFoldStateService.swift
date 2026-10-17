@@ -1,3 +1,4 @@
+import Foundation
 import PocketPetCore
 import SwiftUI
 
@@ -6,39 +7,30 @@ import SwiftUI
 // Verified names (iOS 27.1), from Apple's tech talk
 // https://developer.apple.com/videos/play/tech-talks/111464/ and
 // https://developer.apple.com/documentation/swiftui/devicehinge :
-//   View.onHingeChange { oldContext, newContext in ... }
+//   View.onHingeChange(isEnabled:_:) { oldContext, newContext in ... }
 //   DeviceHingeContext.hinge: DeviceHinge?   (nil means no hinge)
-//   DeviceHinge.angle: Angle
-//   DeviceHinge.status: DeviceHinge.Status   (.partiallyOpen seen in Apple sample code)
+//   DeviceHinge.angle: Angle                 (SwiftUI Angle; UIKit's UIHinge.angle is radians)
+//   DeviceHinge.status: DeviceHinge.Status   (.closed, .partiallyOpen, .fullyOpen)
 //
-// TODO(verify in Xcode): confirm the `.closed` and `.fullyOpen` case names on
-// DeviceHinge.Status. They come from the docs, not from sample code.
+// TODO(verify in Xcode): confirm the DeviceHinge.Status case names against the
+// iOS 27.1 SDK headers. `.partiallyOpen` appears in Apple's sample code; the
+// other two come from the docs.
 
 /// Feeds hinge readings into a `FoldStateService` the rest of the app can observe.
-@MainActor
-final class HingeFoldStateService: FoldStateService {
-    private(set) var current: FoldPosture = .unavailable
+/// Starts as `.unavailable` until the first hinge callback arrives.
+final class HingeFoldStateService: BroadcastFoldStateService, @unchecked Sendable {
+    private let filterLock = NSLock()
     private var filter = FoldPostureFilter(threshold: 2)
-    private var continuations: [UUID: AsyncStream<FoldPosture>.Continuation] = [:]
 
-    nonisolated init() {}
-
-    var updates: AsyncStream<FoldPosture> {
-        AsyncStream { continuation in
-            let id = UUID()
-            continuations[id] = continuation
-            continuation.yield(current)
-            continuation.onTermination = { [weak self] _ in
-                Task { @MainActor in self?.continuations.removeValue(forKey: id) }
-            }
-        }
+    init() {
+        super.init(initial: .unavailable)
     }
 
     /// Called by `HingeReader` with each new reading. Nil means no hinge.
     func ingest(_ reading: HingeReading?) {
-        guard let posture = filter.accept(FoldPosture(reading: reading)) else { return }
-        current = posture
-        for continuation in continuations.values { continuation.yield(posture) }
+        let posture = FoldPosture(reading: reading)
+        let accepted = filterLock.withLock { filter.accept(posture) }
+        if let accepted { send(accepted) }
     }
 }
 
@@ -47,6 +39,7 @@ final class HingeFoldStateService: FoldStateService {
 struct HingeReader: ViewModifier {
     let service: HingeFoldStateService
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 27.1, *) {
             content.onHingeChange { _, context in
@@ -74,6 +67,7 @@ extension HingeReading {
         } else if hinge.status == .fullyOpen {
             status = .fullyOpen
         } else {
+            // .partiallyOpen, and any status Apple adds later, use the live angle.
             status = .partiallyOpen
         }
         self.init(status: status, angleDegrees: hinge.angle.degrees)
