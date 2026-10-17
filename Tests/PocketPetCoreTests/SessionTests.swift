@@ -130,14 +130,36 @@ struct PetSessionTests {
         #expect(session.perform(.wake, at: hours(1)) == .applied)
     }
 
+    /// A store that can't decode its save and has no way to move it aside.
+    final class UnpreservableStore: PetStore, @unchecked Sendable {
+        let loadError: any Error
+        private(set) var saves = 0
+        init(loadError: any Error) { self.loadError = loadError }
+        func load() throws -> PetState? { throw loadError }
+        func save(_ state: PetState) throws { saves += 1 }
+    }
+
     @Test func corruptSaveStartsFreshPet() {
-        struct BrokenStore: PetStore {
-            func load() throws -> PetState? { throw PetCodecError.corrupt("bad") }
-            func save(_ state: PetState) throws {}
-        }
-        let session = PetSession(store: BrokenStore(), now: t0)
+        let store = UnpreservableStore(loadError: PetCodecError.corrupt("bad"))
+        var session = PetSession(store: store, now: t0)
         #expect(session.recoveredFromError != nil)
         #expect(session.state.ageSeconds == 0)
+        // The store can't keep the bad save, so the session must never write over it.
+        session.apply(.open, at: hours(1))
+        _ = session.perform(.play, at: hours(1))
+        session.tick(to: hours(2))
+        #expect(store.saves == 0)
+        #expect(!session.isSavingEnabled)
+        #expect(session.lastSaveError != nil)
+    }
+
+    @Test func unreadableSaveIsNeverOverwritten() {
+        struct Locked: Error {}
+        let store = UnpreservableStore(loadError: Locked())
+        var session = PetSession(store: store, now: t0)
+        session.apply(.open, at: t0)
+        #expect(store.saves == 0)
+        #expect(!session.isSavingEnabled)
     }
 
     @Test func mockDrivenFullLoop() async {
