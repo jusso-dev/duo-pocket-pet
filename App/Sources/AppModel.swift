@@ -23,6 +23,9 @@ final class AppModel {
     private(set) var remindersOffered: Bool
     /// The opt-in good morning note while the pet sleeps.
     private(set) var morningNoteEnabled: Bool
+    /// Meetups with nearby pets, or nil in tests and previews.
+    let meetup: MeetupController?
+    @ObservationIgnored private var isForeground = true
     private let fold: any FoldStateService
     private let clock: @Sendable () -> Date
     private let tickInterval: Duration
@@ -40,6 +43,7 @@ final class AppModel {
         fold: any FoldStateService,
         hinge: HingeFoldStateService? = nil,
         reminders: ReminderScheduler? = nil,
+        meetup: MeetupController? = nil,
         rules: PetRules = .standard,
         clock: @escaping @Sendable () -> Date = { Date() },
         tickInterval: Duration = .seconds(30)
@@ -47,6 +51,7 @@ final class AppModel {
         self.fold = fold
         self.hinge = hinge
         self.reminders = reminders
+        self.meetup = meetup
         self.clock = clock
         self.tickInterval = tickInterval
         remindersOffered = reminders?.hasAskedPermission ?? false
@@ -56,6 +61,22 @@ final class AppModel {
         let observed: any PetStore = reminders.map { ReminderObservingStore(base: store, scheduler: $0) } ?? store
         session = PetSession(store: observed, rules: rules, now: clock())
         session.apply(fold.current, at: clock())
+        meetup?.currentCard = { [weak self] in
+            PetCard(state: self?.state ?? .newborn(at: clock()))
+        }
+        meetup?.applyBoost = { [weak self] in
+            guard let self else { return false }
+            return self.session.playedWithFriend(at: self.clock()) == .applied
+        }
+        updateMeetup()
+    }
+
+    /// Meetups run while the stage or the standard layout is on screen and the
+    /// app is in the foreground. The controller does nothing unless the player opted in.
+    private func updateMeetup() {
+        guard let meetup else { return }
+        meetup.setActive(isForeground && (scene.kind == .stage || scene.kind == .standard))
+        meetup.petChanged()
     }
 
     static func live(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppModel {
@@ -72,7 +93,7 @@ final class AppModel {
                 return AppModel(store: store, fold: mock)
             }
             if let fold = options.fold {
-                return AppModel(store: store, fold: MockFoldStateService(initial: fold), reminders: debugReminders(options), rules: options.rules)
+                return AppModel(store: store, fold: MockFoldStateService(initial: fold), reminders: debugReminders(options), meetup: liveMeetup(), rules: options.rules)
             }
             return liveFold(store: store, reminders: debugReminders(options), rules: options.rules)
         }
@@ -90,9 +111,13 @@ final class AppModel {
     private static func liveFold(store: any PetStore, reminders: ReminderScheduler, rules: PetRules = .standard) -> AppModel {
         if #available(iOS 27.1, *) {
             let hinge = HingeFoldStateService()
-            return AppModel(store: store, fold: hinge, hinge: hinge, reminders: reminders, rules: rules)
+            return AppModel(store: store, fold: hinge, hinge: hinge, reminders: reminders, meetup: liveMeetup(), rules: rules)
         }
-        return AppModel(store: store, fold: StaticFoldStateService(.unavailable), reminders: reminders, rules: rules)
+        return AppModel(store: store, fold: StaticFoldStateService(.unavailable), reminders: reminders, meetup: liveMeetup(), rules: rules)
+    }
+
+    private static func liveMeetup() -> MeetupController {
+        MeetupController(transport: MultipeerMeetupTransport())
     }
 
     /// The file store, or an in-memory one that remembers why, so the app can
@@ -157,6 +182,7 @@ final class AppModel {
                 try? await Task.sleep(for: interval)
                 guard let self, !Task.isCancelled else { return }
                 self.session.tick(to: self.clock())
+                self.meetup?.petChanged()
             }
         }
         await withTaskCancellationHandler {
@@ -170,18 +196,23 @@ final class AppModel {
 
     func apply(_ posture: FoldPosture) {
         session.apply(posture, at: clock())
+        updateMeetup()
     }
 
     /// Writes any half-fold angle changes that are only in memory. Called when
     /// the scene leaves the foreground, so nothing is lost if the app is killed.
     func enteredBackground() {
         session.saveIfNeeded()
+        isForeground = false
+        updateMeetup()
     }
 
     /// Catches the meters up straight away when the app comes back to the
     /// foreground, instead of showing stale values until the next 30 second tick.
     func becameActive() {
         session.tick(to: clock())
+        isForeground = true
+        updateMeetup()
     }
 
     /// Cheers for the pet on the half-fold stage.
@@ -194,6 +225,7 @@ final class AppModel {
     func perform(_ action: PetAction) -> ActionResult {
         let result = session.perform(action, at: clock())
         if case .refused(let reason) = result { lastRefusal = reason } else { lastRefusal = nil }
+        meetup?.petChanged()
         if action == .feed, result == .applied, let reminders {
             // Permission is asked after the first feed, never at launch.
             reminders.playerFed()

@@ -105,8 +105,34 @@ extension PixelColour {
     ReactionPreview()
 }
 
-#Preview("Stage routine") {
-    PetSpriteView(state: .sample(mood: .content, stage: .grown), onStage: true)
+#Preview("Stage routine, every stage") {
+    HStack {
+        ForEach(LifeStage.allCases, id: \.self) { stage in
+            PetSpriteView(state: .sample(mood: .content, stage: stage), onStage: true, maxScale: 4)
+                .frame(width: 96, height: 96)
+        }
+    }
+    .padding()
+}
+
+#Preview("Every reaction, every stage, looping") {
+    TimelineView(.periodic(from: .now, by: 1.5)) { timeline in
+        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+            ForEach(LifeStage.allCases, id: \.self) { stage in
+                GridRow {
+                    ForEach(PetReaction.allCases, id: \.self) { reaction in
+                        PetSpriteView(
+                            state: .sample(mood: .content, stage: stage),
+                            reaction: PetReactionCue(reaction: reaction, startedAt: timeline.date),
+                            maxScale: 3
+                        )
+                        .frame(width: 72, height: 72)
+                    }
+                }
+            }
+        }
+        .padding()
+    }
 }
 
 private struct ReactionPreview: View {

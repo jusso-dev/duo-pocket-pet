@@ -9,6 +9,11 @@ struct StandardHomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             GlanceHeader(state: model.state)
+            if let meetup = model.meetup {
+                MeetupPanel(meetup: meetup, petName: model.state.name)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+            }
             HomeView(model: model, showsBedtime: true)
         }
     }

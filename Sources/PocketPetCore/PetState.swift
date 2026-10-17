@@ -279,6 +279,16 @@ public struct PetEngine: Sendable {
         return .applied
     }
 
+    /// Happiness from playing with a nearby pet. Not rate limited here:
+    /// `MeetupLedger` decides whether the pair has had today's boost.
+    @discardableResult
+    public mutating func meetupBoost(_ amount: Meter = MeetupLedger.boost, at now: Date) -> ActionResult {
+        tick(to: now)
+        if state.isAsleep { return .refused(.asleep) }
+        state.happiness = (state.happiness + amount).clampedMeter
+        return .applied
+    }
+
     @discardableResult
     public mutating func perform(_ action: PetAction, at now: Date) -> ActionResult {
         switch action {

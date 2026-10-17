@@ -26,6 +26,10 @@ targets:
         CFBundleDisplayName: Hingeling
         UILaunchScreen: {}
         UIApplicationSupportsMultipleScenes: true
+        NSLocalNetworkUsageDescription: Hingeling looks for other Hingeling pets nearby so they can play together. Only your pet's name, life stage and mood are shared.
+        NSBonjourServices:
+          - _hingeling._tcp
+          - _hingeling._udp
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
