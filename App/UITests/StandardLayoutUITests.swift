@@ -26,10 +26,10 @@ final class StandardLayoutUITests: XCTestCase {
 
         app.buttons["Bedtime"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Wake"].firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Bip is asleep"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["Bip is asleep"].firstMatch.exists)
 
         app.buttons["Wake"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Bedtime"].firstMatch.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Bip is asleep"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["Bip is asleep"].firstMatch.exists)
     }
 }

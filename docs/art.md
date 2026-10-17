@@ -59,3 +59,7 @@ An asleep pet stays asleep on stage rather than dancing.
 
 The contact sheet is a review aid only and isn't bundled with the app. If you
 change the art, run `scripts/contact-sheet.py` (needs Swift and Pillow) so the picture in this file matches the code.
+
+## Interface
+
+The UI around the pet (pixel lettering, icons, LCD panels and keycaps) follows the same rules. See [docs/ui.md](ui.md).

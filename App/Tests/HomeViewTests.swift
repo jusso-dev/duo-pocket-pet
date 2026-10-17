@@ -13,7 +13,7 @@ struct HomeViewTests {
     private let availableWidth: CGFloat = 375 - 32
 
     private func items(_ titles: [String]) -> [ActionRow.Item] {
-        titles.map { ActionRow.Item(title: $0, systemImage: "circle", hint: "", action: {}) }
+        titles.map { ActionRow.Item(title: $0, icon: .bowl, hint: "", action: {}) }
     }
 
     /// Ideal (unconstrained) size, the space the content asks for.
@@ -37,11 +37,13 @@ struct HomeViewTests {
         #expect(row.width <= availableWidth, "ActionRow needs \(row.width) pt at \(size)")
     }
 
-    @Test func standardSizeKeepsOneRowWhenItFits() throws {
-        let row = try idealSize(ActionRow(buttons: items(["Feed", "Clean", "Play"]), dynamicTypeSize: .large), .large)
-        // A row is about one button tall. A stack of three would be three times that.
-        let single = try idealSize(Button("Feed", systemImage: "circle") {}.buttonStyle(.borderedProminent), .large)
-        #expect(row.height < single.height * 2)
+    /// At the default size the keycaps sit two to a row, so four buttons take
+    /// two rows rather than four, and still fit a compact screen's width.
+    @Test func standardSizeUsesTwoColumns() throws {
+        let four = try idealSize(ActionRow(buttons: items(["Feed", "Clean", "Play", "Bedtime"]), dynamicTypeSize: .large), .large)
+        let one = try idealSize(ActionRow(buttons: items(["Feed"]), dynamicTypeSize: .large), .large)
+        #expect(four.height < one.height * 2.6, "four buttons are \(four.height) pt tall, one is \(one.height)")
+        #expect(four.width <= availableWidth)
     }
 
     /// The whole standard-iPhone home screen at the largest size scrolls rather
