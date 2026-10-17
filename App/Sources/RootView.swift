@@ -19,7 +19,7 @@ struct RootView: View {
     @ViewBuilder private var content: some View {
         switch model.scene {
         case .glance:
-            GlanceSlot(state: model.state)
+            GlanceView(state: model.state)
         case .home:
             HomeView(model: model)
         case .stage(let angle):
