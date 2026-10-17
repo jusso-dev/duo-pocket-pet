@@ -53,6 +53,10 @@ final class MeetupController {
     @ObservationIgnored private var autoInvite = false
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
+    /// True while meetups are on and a scene allows them. The event task stays
+    /// alive regardless: cancelling a task that reads an AsyncStream ends the
+    /// stream for good, so it only ignores events while this is false.
+    @ObservationIgnored private var isRunning = false
     /// Our pet as it is now. Set by `AppModel`.
     @ObservationIgnored var currentCard: () -> PetCard = { PetCard(name: "Bip", stage: .newborn, mood: .content) }
     /// Raises happiness by the amount. Returns true when it landed.
@@ -155,10 +159,13 @@ final class MeetupController {
                 let events = transport.events
                 eventTask = Task { [weak self] in
                     for await event in events {
-                        guard let self, !Task.isCancelled else { return }
-                        self.on(event)
+                        guard let self else { return }
+                        if self.isRunning { self.on(event) }
                     }
                 }
+            }
+            if !isRunning {
+                isRunning = true
                 let interval = tickInterval
                 tickTask = Task { [weak self] in
                     while !Task.isCancelled {
@@ -173,14 +180,14 @@ final class MeetupController {
                 transport.start(advertising: currentCard(), autoInvite: autoInvite)
             }
         } else {
-            guard eventTask != nil else { status = .off; return }
+            guard isRunning else { status = .off; return }
+            // Off first, so saying goodbye doesn't start looking again.
+            isRunning = false
             if var machine {
                 handle(machine.leave())
                 self.machine = machine
             }
-            eventTask?.cancel()
             tickTask?.cancel()
-            eventTask = nil
             tickTask = nil
             machine = nil
             peerKey = nil
@@ -247,18 +254,27 @@ final class MeetupController {
             case .playedTogether(let peer):
                 var ledger = loadLedger()
                 let fresh = ledger.claim(pair: pairKey(peer), at: clock(), calendar: calendar)
-                saveLedger(ledger)
-                let boosted = fresh && applyBoost(MeetupLedger.boost)
-                news = boosted
-                    ? "\(currentCard().name) had a lovely dance with \(peer.name)."
-                    : "\(currentCard().name) danced with \(peer.name) again. Today's boost is already used."
+                // Only save the claim once the boost lands, so an asleep pet
+                // doesn't use up today's allowance.
+                if fresh && applyBoost(MeetupLedger.boost) {
+                    saveLedger(ledger)
+                    news = "\(currentCard().name) had a lovely dance with \(peer.name)."
+                } else if fresh {
+                    news = "\(currentCard().name) is asleep. Let them rest."
+                } else {
+                    news = "\(currentCard().name) danced with \(peer.name) again. Today's boost is already used."
+                }
             case .receivedGift(let gift, let from):
                 var ledger = loadLedger()
                 let counts = ledger.claimGift(pair: pairKey(from), at: clock(), calendar: calendar)
-                saveLedger(ledger)
-                news = counts && applyGift(gift)
-                    ? "\(from.name) sent \(gift.phrase)."
-                    : "\(from.name) sent \(gift.phrase). That's plenty for today, thank you."
+                if counts && applyGift(gift) {
+                    saveLedger(ledger)
+                    news = "\(from.name) sent \(gift.phrase)."
+                } else if counts {
+                    news = "\(from.name) sent \(gift.phrase), but \(currentCard().name) is asleep."
+                } else {
+                    news = "\(from.name) sent \(gift.phrase). That's plenty for today, thank you."
+                }
             case .game(let message):
                 game.receive(message)
                 gameMaybeFinished()
@@ -268,7 +284,7 @@ final class MeetupController {
                 peerKey = nil
                 isDancing = false
                 game = PebbleGame()
-                if isEnabled && isActive && eventTask != nil {
+                if isRunning {
                     // Drop this peer and look again, so the next pet nearby can say hello.
                     transport.stop()
                     nearby = []
@@ -293,8 +309,7 @@ final class MeetupController {
         rewardedGame = true
         var ledger = loadLedger()
         let counts = ledger.claimGame(pair: pairKey(friend), at: clock(), calendar: calendar)
-        saveLedger(ledger)
-        if counts { _ = applyBoost(won ? 0.1 : 0.05) }
+        if counts && applyBoost(won ? 0.1 : 0.05) { saveLedger(ledger) }
         pals.recordGame(with: pairKey(friend), won: won)
         savePals()
         news = won ? "\(currentCard().name) won Leaf, Pebble, Twig." : "\(friend.name) won Leaf, Pebble, Twig. Good game."

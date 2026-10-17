@@ -21,27 +21,26 @@ OUT="marketing/screenshots/out"
 mkdir -p "$OUT" build
 (cd App && xcodegen generate)
 
-for SIM in "${SIMS[@]}"; do
-  echo "== $SIM"
-  xcrun simctl boot "$SIM" 2>/dev/null || true
-  # A tidy status bar: 9:41, full battery and signal.
-  xcrun simctl status_bar "$SIM" override --time "9:41" --batteryState charged --batteryLevel 100 \
-    --cellularBars 4 --wifiBars 3 --dataNetwork wifi || true
-
-  slug=$(echo "$SIM" | tr '[:upper:] ' '[:lower:]-')
-  bundle="build/screenshots-$slug.xcresult"
+# Runs the named screenshot tests on one simulator and exports them as JPEGs.
+# Usage: run_shots <simulator> <bundle slug> <test>...
+run_shots() {
+  local sim="$1" tag="$2"
+  shift 2
+  local only=()
+  for t in "$@"; do only+=("-only-testing:HingelingUITests/$t"); done
+  local bundle="build/screenshots-$tag.xcresult"
   rm -rf "$bundle"
   TEST_RUNNER_HINGELING_SCREENSHOTS=1 xcodebuild \
     -project App/Hingeling.xcodeproj \
     -scheme Hingeling \
-    -destination "platform=iOS Simulator,name=$SIM,OS=latest" \
-    -only-testing:HingelingUITests/ScreenshotTests \
+    -destination "platform=iOS Simulator,name=$sim,OS=latest" \
+    "${only[@]}" \
     -resultBundlePath "$bundle" \
     CODE_SIGNING_ALLOWED=NO \
     test
 
-  raw="build/screenshots-raw/$slug"
-  rm -rf "$raw" && mkdir -p "$raw" "$OUT/$slug"
+  local raw="build/screenshots-raw/$tag"
+  rm -rf "$raw" && mkdir -p "$raw"
   xcrun xcresulttool export attachments --path "$bundle" --output-path "$raw"
   # The manifest maps exported files to the attachment names given in ScreenshotTests.
   python3 - "$raw" "$OUT/$slug" <<'PY'
@@ -59,6 +58,29 @@ for test in json.load(open(os.path.join(raw, "manifest.json"))):
                               check=True, capture_output=True, text=True).stdout.split()
         print(f"{dest}: {size[-3]} x {size[-1]}")
 PY
+}
+
+for SIM in "${SIMS[@]}"; do
+  echo "== $SIM"
+  xcrun simctl boot "$SIM" 2>/dev/null || true
+  # A tidy status bar: 9:41, full battery and signal.
+  xcrun simctl status_bar "$SIM" override --time "9:41" --batteryState charged --batteryLevel 100 \
+    --cellularBars 4 --wifiBars 3 --dataNetwork wifi || true
+
+  slug=$(echo "$SIM" | tr '[:upper:] ' '[:lower:]-')
+  rm -rf "build/screenshots-raw/$slug" && mkdir -p "$OUT/$slug"
+
+  if [[ "$SIM" == *Duo* ]]; then
+    # The -fold argument only sets the app's posture; the simulator's own
+    # display has to match it. Shot 1 is taken closed (outer display), the
+    # rest open (inner display), in separate runs. Shot 4 is standard-iPhone only.
+    read -r -p "Close the $SIM simulator so the outer display shows, then press Return. "
+    run_shots "$SIM" "$slug-closed" ScreenshotTests/test1Glance
+    read -r -p "Open the $SIM simulator so the inner display shows, then press Return. "
+    run_shots "$SIM" "$slug-open" ScreenshotTests/test2HomeMidFeed ScreenshotTests/test3Stage ScreenshotTests/test5Elder
+  else
+    run_shots "$SIM" "$slug" ScreenshotTests
+  fi
   xcrun simctl status_bar "$SIM" clear || true
 done
 

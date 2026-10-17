@@ -146,6 +146,34 @@ struct MeetupControllerTests {
         #expect(await eventually { model.meetup?.nearby.map(\.id) == ["c"] })
     }
 
+    /// Turning meetups off used to cancel the task reading the transport's
+    /// events, which ends an AsyncStream for good, so nothing arrived after.
+    @Test func eventsStillArriveAfterTurningMeetupsOffAndOn() async {
+        let transport = FakeTransport(key: "a")
+        let model = model(transport, name: "Bip", clock: Clock(t0), defaults: defaults())
+        model.meetup?.setEnabled(true)
+        model.meetup?.setEnabled(false)
+        model.meetup?.setEnabled(true)
+        model.enteredBackground()
+        model.becameActive()
+        transport.inject(.found(peer: "b", card: PetCard(name: "Moss", stage: .young, mood: .content)))
+        #expect(await eventually { model.meetup?.nearby.map(\.id) == ["b"] })
+    }
+
+    /// A gift to a sleeping pet doesn't count against today's three.
+    @Test func giftsToASleepingPetDontUseUpTheAllowance() async {
+        let clock = Clock(t0)
+        let (a, b, _, _) = await pair(clock: clock)
+        #expect(b.perform(.sleep) == .applied)
+        a.meetup?.send(.snack)
+        #expect(await eventually { (b.meetup?.news ?? "").contains("asleep") })
+        #expect(b.perform(.wake) == .applied)
+        let hunger = b.state.hunger
+        for _ in 0..<MeetupLedger.giftsPerPairPerDay { a.meetup?.send(.snack) }
+        #expect(await eventually { abs(b.state.hunger - max(0, hunger - 0.45)) < 0.001 })
+        #expect(b.meetup?.news == "Bip sent a snack.")
+    }
+
     @Test func aDuoAndAStandardIPhoneDanceAndBothGetOneBoostADay() async {
         let clock = Clock(t0)
         let (a, b, _, _) = await pair(clock: clock)
