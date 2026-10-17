@@ -13,6 +13,8 @@ struct RootView: View {
 
     var body: some View {
         content
+            // Content moves clear of the cameras; the backdrop still fills the screen.
+            .avoidsOcclusion()
             .background(RetroBackdrop())
             // Key on the kind, so a folding hinge doesn't restart the animation
             // every 2 degrees, and skip it entirely with Reduce Motion on.
@@ -74,6 +76,9 @@ private struct StorageNoticeBanner: View {
             Button("Dismiss", systemImage: "xmark", action: onDismiss)
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
+                // Apple's minimum hit target, though the icon is small.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))

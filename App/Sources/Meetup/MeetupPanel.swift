@@ -10,9 +10,10 @@ struct MeetupPanel: View {
     var showsToggle = true
     var openNearby: (() -> Void)?
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         VStack(alignment: .leading, spacing: 8) {
             if showsToggle {
                 MeetupToggle(meetup: meetup)
@@ -45,13 +46,14 @@ struct MeetupPanel: View {
 struct MeetupToggle: View {
     let meetup: MeetupController
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     static func privacyNote(petName: String) -> String {
         "Finds other Hingeling pets on the same Wi-Fi or close by. Only \(petName)'s name, life stage and mood are shared, and only while this is on."
     }
 
     var body: some View {
-        let p = RetroPalette.current(scheme)
+        let p = RetroPalette.current(scheme, contrast)
         Toggle(isOn: Binding(get: { meetup.isEnabled }, set: { meetup.setEnabled($0) })) {
             HStack(spacing: 8) {
                 PixelIconView(icon: .pair, scale: 2, colour: p.backdropInk.color)
