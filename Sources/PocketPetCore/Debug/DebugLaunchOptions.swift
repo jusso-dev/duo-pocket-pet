@@ -5,12 +5,18 @@ import Foundation
 ///
 /// - `-mockFold`: play `MockFoldStateService.demoScript`.
 /// - `-fold closed|open|unavailable|half` or `-fold half:120`: start in that posture and stay there.
+/// - `-fastRules`: needs change an hour's worth every 10 seconds, and reminders
+///   can fire 10 seconds out, for checking notifications by hand.
 /// - `-pet <mood>,<stage>[,<name>]`: a sample pet in memory, for example `-pet hungry,young`.
 ///   Nothing is read from or written to disk.
 public struct DebugLaunchOptions: Equatable, Sendable {
     public var playsDemoScript = false
     public var fold: FoldPosture?
     public var pet: PetState?
+    public var fastRules = false
+
+    /// The rules to run with: standard, or 360 times faster with `-fastRules`.
+    public var rules: PetRules { fastRules ? PetRules.standard.speeded(by: 360) : .standard }
 
     public init() {}
 
@@ -22,6 +28,8 @@ public struct DebugLaunchOptions: Equatable, Sendable {
             switch arg {
             case "-mockFold":
                 playsDemoScript = true
+            case "-fastRules":
+                fastRules = true
             case "-fold":
                 if let next { fold = Self.posture(next) }
             case "-pet":
@@ -34,7 +42,7 @@ public struct DebugLaunchOptions: Equatable, Sendable {
     }
 
     /// True when any option is set, so the app should use these instead of the live services.
-    public var isActive: Bool { playsDemoScript || fold != nil || pet != nil }
+    public var isActive: Bool { playsDemoScript || fold != nil || pet != nil || fastRules }
 
     static func posture(_ text: String) -> FoldPosture? {
         let parts = text.lowercased().split(separator: ":", maxSplits: 1).map(String.init)
@@ -54,5 +62,25 @@ public struct DebugLaunchOptions: Equatable, Sendable {
         guard parts.count >= 2, let mood = Mood(rawValue: parts[0]), let stage = LifeStage(rawValue: parts[1]) else { return nil }
         let name = parts.count > 2 && !parts[2].isEmpty ? parts[2] : "Bip"
         return .sample(mood: mood, stage: stage, name: name, at: now)
+    }
+}
+
+extension PetRules {
+    /// The same rules with every per-hour rate multiplied by `factor`, for demos and manual tests.
+    public func speeded(by factor: Double) -> PetRules {
+        func scale(_ r: Rates) -> Rates {
+            Rates(
+                hungerGainPerHour: r.hungerGainPerHour * factor,
+                happinessLossPerHour: r.happinessLossPerHour * factor,
+                energyChangePerHour: r.energyChangePerHour * factor,
+                hygieneLossPerHour: r.hygieneLossPerHour * factor
+            )
+        }
+        var rules = self
+        rules.awake = scale(awake)
+        rules.asleep = scale(asleep)
+        rules.neglectHappinessLossPerHour *= factor
+        rules.integrationStep = max(1, integrationStep / factor)
+        return rules
     }
 }
