@@ -215,7 +215,8 @@ private struct PixelTextLayout: Layout {
     let alignment: PixelFont.Alignment
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width.map { $0.isFinite ? Int($0) / scale : Int.max } ?? Int.max
+        // Huge or infinite proposals mean "no limit"; converting them to Int would trap.
+        let maxWidth = proposal.width.map { $0.isFinite && $0 < 1_000_000 ? Int($0) / scale : Int.max } ?? Int.max
         let bitmap = PixelFont.layout(text, maxWidth: maxWidth, alignment: alignment)
         let width = CGFloat(bitmap.width * scale)
         // Centred text takes the whole width offered, so it centres in it.

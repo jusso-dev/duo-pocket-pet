@@ -113,3 +113,12 @@ struct SpriteHaloTests {
         }
     }
 }
+
+@Suite("Pixel font limits")
+struct PixelFontLimitTests {
+    /// The default width is `Int.max`; adding the tracking to it used to overflow and trap.
+    @Test func noWidthLimitDoesNotOverflow() {
+        #expect(PixelFont.layout("BIP IS HUNGRY", maxWidth: .max).height == PixelFont.glyphHeight)
+        #expect(PixelFont.layout("BIP", maxWidth: .max - 1).width == 17)
+    }
+}
