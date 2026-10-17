@@ -6,7 +6,6 @@ open class BroadcastFoldStateService: FoldStateService, @unchecked Sendable {
     private let lock = NSLock()
     private var _current: FoldPosture
     private var continuations: [UUID: AsyncStream<FoldPosture>.Continuation] = [:]
-    private var _history: [FoldPosture] = []
 
     public init(initial: FoldPosture) {
         _current = initial
@@ -14,11 +13,6 @@ open class BroadcastFoldStateService: FoldStateService, @unchecked Sendable {
 
     public var current: FoldPosture {
         lock.withLock { _current }
-    }
-
-    /// Every posture sent so far, in order.
-    public var history: [FoldPosture] {
-        lock.withLock { _history }
     }
 
     public var subscriberCount: Int {
@@ -40,10 +34,11 @@ open class BroadcastFoldStateService: FoldStateService, @unchecked Sendable {
         }
     }
 
-    public func send(_ posture: FoldPosture) {
+    /// Updates `current` and pushes the posture to every open stream. Keeps
+    /// nothing else, so the live hinge service doesn't grow for the whole process.
+    open func send(_ posture: FoldPosture) {
         let targets: [AsyncStream<FoldPosture>.Continuation] = lock.withLock {
             _current = posture
-            _history.append(posture)
             return Array(continuations.values)
         }
         for continuation in targets { continuation.yield(posture) }
@@ -74,8 +69,21 @@ public final class MockFoldStateService: BroadcastFoldStateService, @unchecked S
         }
     }
 
+    private let historyLock = NSLock()
+    private var _history: [FoldPosture] = []
+
     public override init(initial: FoldPosture = .open) {
         super.init(initial: initial)
+    }
+
+    /// Every posture sent so far, in order. Only the mock keeps this, for tests.
+    public var history: [FoldPosture] {
+        historyLock.withLock { _history }
+    }
+
+    public override func send(_ posture: FoldPosture) {
+        historyLock.withLock { _history.append(posture) }
+        super.send(posture)
     }
 
     /// Plays a script in order, waiting each step's delay before sending it.
