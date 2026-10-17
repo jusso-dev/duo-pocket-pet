@@ -45,18 +45,25 @@ final class AppModel {
     }
 
     /// Starts listening. Called from `RootView.task`, cancelled with the view.
+    ///
+    /// The 30-second tick runs in its own task rather than a task group, because
+    /// Swift 6.4's region-based isolation checker rejects `@MainActor` child tasks
+    /// that capture `self` here ("pattern ... does not understand how to check").
     func run() async {
         let stream = fold.updates
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { @MainActor in
-                for await posture in stream { self.apply(posture) }
+        let ticker = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard let self, !Task.isCancelled else { return }
+                self.session.tick(to: self.clock())
             }
-            group.addTask { @MainActor in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(30))
-                    self.session.tick(to: self.clock())
-                }
-            }
+        }
+        await withTaskCancellationHandler {
+            for await posture in stream { apply(posture) }
+            // Keep ticking after the fold stream ends, until the view cancels us.
+            await ticker.value
+        } onCancel: {
+            ticker.cancel()
         }
     }
 
