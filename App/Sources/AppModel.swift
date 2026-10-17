@@ -77,6 +77,12 @@ final class AppModel {
         session.saveIfNeeded()
     }
 
+    /// Catches the meters up straight away when the app comes back to the
+    /// foreground, instead of showing stale values until the next 30 second tick.
+    func becameActive() {
+        session.tick(to: clock())
+    }
+
     @discardableResult
     func perform(_ action: PetAction) -> ActionResult {
         let result = session.perform(action, at: clock())

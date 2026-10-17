@@ -16,7 +16,7 @@ struct RootView: View {
             .task { await model.run() }
             .modifier(OptionalHingeReader(service: model.hinge))
             .onChange(of: scenePhase) { _, phase in
-                if phase != .active { model.enteredBackground() }
+                if phase == .active { model.becameActive() } else { model.enteredBackground() }
             }
     }
 

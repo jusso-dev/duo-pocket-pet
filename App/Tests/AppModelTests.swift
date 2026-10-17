@@ -3,6 +3,17 @@ import PocketPetCore
 import Testing
 @testable import Hingeling
 
+/// A clock a test can move forward. Read from the model's `@Sendable` clock closure.
+private final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _now: Date
+    init(_ now: Date) { _now = now }
+    var now: Date {
+        get { lock.withLock { _now } }
+        set { lock.withLock { _now = newValue } }
+    }
+}
+
 @MainActor
 @Suite("AppModel")
 struct AppModelTests {
@@ -52,6 +63,19 @@ struct AppModelTests {
         model.enteredBackground()
         #expect(store.saveCount == before + 1)
         #expect(!model.session.hasUnsavedChanges)
+    }
+
+    @Test func becomingActiveCatchesUpStraightAway() throws {
+        let clock = TestClock(t0)
+        let store = InMemoryPetStore(PetState(hunger: 0.2, bornAt: t0))
+        let model = AppModel(store: store, fold: MockFoldStateService(initial: .open), clock: { clock.now })
+        let hungerBefore = model.state.hunger
+        clock.now = t0.addingTimeInterval(2 * 3600)
+        model.becameActive()
+        #expect(model.state.lastUpdated == clock.now)
+        #expect(model.state.ageSeconds == 2 * 3600)
+        #expect(model.state.hunger > hungerBefore)
+        #expect(try store.load()?.lastUpdated == clock.now)
     }
 
     @Test func noHingeUsesStandardLayout() {
