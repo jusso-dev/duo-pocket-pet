@@ -10,6 +10,8 @@ import Foundation
 public struct PetSession {
     public private(set) var engine: PetEngine
     public private(set) var machine = PetSceneMachine()
+    /// The half-fold stage: which routine to show and the cheer cooldown.
+    public private(set) var stageShow = StageShow()
     public let store: any PetStore
     /// The last save error, if any. The app keeps running in memory.
     public private(set) var lastSaveError: String?
@@ -26,6 +28,8 @@ public struct PetSession {
 
     public var state: PetState { engine.state }
     public var scene: PetScene { machine.scene ?? .standard }
+    /// What the pet performs on the stage right now.
+    public var stageRoutine: StageRoutine { StageShow.routine(for: engine.state) }
 
     /// Loads the saved pet or starts a new one, then catches it up to `now`.
     ///
@@ -100,6 +104,14 @@ public struct PetSession {
     public mutating func perform(_ action: PetAction, at now: Date) -> ActionResult {
         let result = engine.perform(action, at: now)
         save()
+        return result
+    }
+
+    /// Cheers for the pet on the stage. Saved when it lands.
+    @discardableResult
+    public mutating func cheer(at now: Date) -> CheerResult {
+        let result = stageShow.cheer(&engine, at: now)
+        if result.wasApplied { save() }
         return result
     }
 
