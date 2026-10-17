@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 /// Splits a view's bounds into the two areas either side of the fold, so
 /// nothing interactive sits on it.
