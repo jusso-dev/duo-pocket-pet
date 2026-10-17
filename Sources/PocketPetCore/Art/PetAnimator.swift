@@ -7,6 +7,11 @@ public struct PetAnimator: Equatable, Sendable {
     public static let loopFrameDuration: TimeInterval = 0.5
     /// Seconds per frame for one-shot reactions.
     public static let reactionFrameDuration: TimeInterval = 0.18
+    /// Seconds per frame while asleep. The sleeping pet sits on the closed
+    /// outer screen for hours, so its two-frame snore turns over slowly.
+    public static let asleepFrameDuration: TimeInterval = 2.0
+    /// Redraw interval when nothing can change, such as under Reduce Motion.
+    public static let stillTickInterval: TimeInterval = 3600
 
     public var stage: LifeStage
     public var mood: Mood
@@ -64,9 +69,24 @@ public struct PetAnimator: Equatable, Sendable {
             let index = min(frames.count - 1, Int(elapsed / Self.reactionFrameDuration))
             return frames[index]
         case .mood, .stage:
-            let ticks = Int(floor(now.timeIntervalSinceReferenceDate / Self.loopFrameDuration))
+            let ticks = Int(floor(now.timeIntervalSinceReferenceDate / Self.loopDuration(for: pose)))
             let index = ((ticks % frames.count) + frames.count) % frames.count
             return frames[index]
         }
+    }
+
+    /// Seconds per frame for a looping pose.
+    public static func loopDuration(for pose: PetPose) -> TimeInterval {
+        pose == .mood(.asleep) ? asleepFrameDuration : loopFrameDuration
+    }
+
+    /// How often a view should redraw at `now`: only as often as the frame can
+    /// change. Reactions tick fast, a sleeping pet slowly, and Reduce Motion
+    /// barely at all.
+    public func tickInterval(at now: Date, reduceMotion: Bool = false) -> TimeInterval {
+        if reduceMotion { return Self.stillTickInterval }
+        let pose = pose(at: now)
+        if case .reaction = pose { return Self.reactionFrameDuration }
+        return Self.loopDuration(for: pose)
     }
 }
