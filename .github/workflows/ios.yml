@@ -11,8 +11,8 @@ concurrency:
 
 jobs:
   ios:
-    name: Core tests and app build (macOS 27, hosted)
-    runs-on: macos-27
+    name: Core tests and app build (xcode-27 image, hosted)
+    runs-on: xcode-27
     timeout-minutes: 45
     env:
       # The iPhone Duo hinge APIs (DeviceHinge, onHingeChange) ship in the iOS 27.1 SDK.
@@ -35,7 +35,7 @@ jobs:
             fi
           done
           if [ -z "$chosen" ]; then
-            echo "::error::No Xcode on macos-27 has iphonesimulator SDK $MIN_SIM_SDK or later, so the iPhone Duo APIs are not available on this image yet."
+            echo "::error::No Xcode on the xcode-27 image has iphonesimulator SDK $MIN_SIM_SDK or later, so the iPhone Duo APIs are not available on this image yet."
             exit 1
           fi
           sudo xcode-select -s "$chosen/Contents/Developer"
@@ -52,24 +52,34 @@ jobs:
         working-directory: App
         run: xcodegen generate
 
-      - name: Pick an iPhone simulator
+      - name: Create an iOS 27.1 simulator
         id: sim
         run: |
           set -euo pipefail
-          xcrun simctl list devices available
-          udid=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)["devices"]
-          ios = sorted((k for k in data if "iOS" in k), key=lambda k: [int(x) for x in k.rsplit("iOS-", 1)[-1].split("-")], reverse=True)
-          for runtime in ios:
-              for d in data[runtime]:
-                  if d["name"].startswith("iPhone"):
-                      print(d["udid"]); sys.exit(0)
+          echo "== Runtimes"; xcrun simctl list runtimes
+          echo "== Device types"; xcrun simctl list devicetypes
+          runtime=$(xcrun simctl list runtimes -j | python3 -c '
+          import json, os, sys
+          want = [int(x) for x in os.environ["MIN_SIM_SDK"].split(".")]
+          rts = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")]
+          rts = [r for r in rts if [int(x) for x in r["version"].split(".")][:2] >= want]
+          rts.sort(key=lambda r: [int(x) for x in r["version"].split(".")])
+          print(rts[0]["identifier"] if rts else "")
           ')
-          if [ -z "$udid" ]; then
-            echo "::error::No iPhone simulator is available for the selected Xcode."
+          if [ -z "$runtime" ]; then
+            echo "::error::No iOS simulator runtime at $MIN_SIM_SDK or later is installed."
             exit 1
           fi
+          read -r dtype dname < <(xcrun simctl list devicetypes -j | python3 -c '
+          import json, sys
+          types = [t for t in json.load(sys.stdin)["devicetypes"] if t["name"].startswith("iPhone")]
+          duo = [t for t in types if "Duo" in t["name"]]
+          pick = duo[0] if duo else types[-1]
+          print(pick["identifier"], pick["name"])
+          ')
+          if [[ "$dname" == *Duo* ]]; then kind="iPhone Duo"; else kind="standard iPhone (no Duo device type on this image)"; fi
+          echo "::notice::Simulator: $dname on $runtime. Device kind: $kind"
+          udid=$(xcrun simctl create "CI $dname" "$dtype" "$runtime")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Build and test the app on the simulator
