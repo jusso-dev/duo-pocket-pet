@@ -126,6 +126,15 @@ struct AppModelTests {
         #expect(model.storageNotice == nil)
     }
 
+    /// VoiceOver hears every outcome, not just a silent change on screen.
+    @Test func everyTapHasAnAnnouncement() {
+        #expect(ActionResult.refused(.notHungry).announcement(for: .feed, petName: "Bip") == "Bip is full right now.")
+        #expect(ActionResult.applied.announcement(for: .feed, petName: "Bip") == "You fed Bip.")
+        for action in [PetAction.feed, .clean, .play, .sleep, .wake] {
+            #expect(!ActionResult.applied.announcement(for: action, petName: "Bip").isEmpty)
+        }
+    }
+
     @Test func noHingeUsesStandardLayout() {
         let model = AppModel(store: InMemoryPetStore(), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
         #expect(model.scene == .standard)

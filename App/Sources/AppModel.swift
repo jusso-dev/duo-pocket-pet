@@ -155,6 +155,24 @@ final class AppModel {
     }
 }
 
+extension ActionResult {
+    /// What VoiceOver should say after a button tap, applied or refused.
+    func announcement(for action: PetAction, petName: String) -> String {
+        switch self {
+        case .refused(let reason):
+            return reason.message(petName: petName)
+        case .applied:
+            switch action {
+            case .feed: return "You fed \(petName)."
+            case .clean: return "\(petName) is squeaky clean."
+            case .play: return "You played with \(petName)."
+            case .sleep: return "\(petName) is going to sleep."
+            case .wake: return "\(petName) is awake."
+            }
+        }
+    }
+}
+
 extension ActionResult.Refusal {
     func message(petName: String) -> String {
         switch self {
