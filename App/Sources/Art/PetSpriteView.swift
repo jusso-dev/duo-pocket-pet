@@ -36,14 +36,10 @@ struct PetSpriteView: View {
     }
 
     /// Redraw only as often as frames can change. The glance view is on screen
-    /// for long stretches, so idle loops tick at the loop rate, not the faster
-    /// reaction rate.
+    /// for long stretches, often with the pet asleep, so the interval comes
+    /// from the animator rather than a fixed rate.
     private var tickInterval: TimeInterval {
-        if reduceMotion { return 3600 }
-        if let reaction, Date.now.timeIntervalSince(reaction.startedAt) < PetAnimator.duration(of: reaction.reaction, stage: state.lifeStage) {
-            return PetAnimator.reactionFrameDuration
-        }
-        return PetAnimator.loopFrameDuration
+        animator.tickInterval(at: .now, reduceMotion: reduceMotion)
     }
 
     private var animator: PetAnimator {
