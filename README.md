@@ -68,14 +68,28 @@ Hingeling uses local notifications only, with no server. Permission is asked aft
 
 To check one by hand on the simulator: launch with `-fastRules -fold unavailable`, feed once and allow notifications, then go to the home screen and wait about a minute.
 
-## Meeting other pets
+## Sharing and playing nearby
 
-With "Meet nearby pets" turned on, two Hingeling pets nearby can play together. On iPhone Duo that happens while the phone is half folded; on any other iPhone it happens from the standard layout. Both pets get a happiness boost, at most once per pair per day.
+**Share a pet.** The Share button on the home screen makes a pixel-art card of the pet (name, life stage, day and mood) and opens the share sheet, so it can go by Messages, AirDrop or anywhere else. The card is drawn by `ShareCard` in the core package and carries nothing about the player.
 
-- Off by default. The system asks for local network access the first time it's turned on (`NSLocalNetworkUsageDescription`).
-- Transport: MultipeerConnectivity, service type `hingeling`, encryption required. The peer name is a random token made once per install, never the device or player name.
-- Messages (`Sources/PocketPetCore/Meetup/MeetupProtocol.swift`): versioned JSON carrying only the pet's name, life stage and mood.
-- Handshake (`MeetupMachine`): hello, play invites, eight seconds of play, then goodbye. Timeouts, version mismatches and dropped connections end the meetup with no boost.
+**Play nearby, iPhone to iPhone.** With "Meet nearby pets" turned on, Hingeling finds other pets on the same Wi-Fi network or close by (MultipeerConnectivity picks local Wi-Fi, peer-to-peer Wi-Fi or Bluetooth).
+
+- **Nearby screen:** lists the pets around you. Tap Hello to invite one. Two iPhone Duos that are both half folded invite each other straight away.
+- **Together:** the pets dance first, then stay together until someone says goodbye.
+  - Send a snack, a toy or a bubble bath. Up to 3 gifts a day from each friend count.
+  - Play Leaf, Pebble, Twig, first to two rounds. Leaf wraps pebble, pebble snaps twig, twig pokes through leaf. Both pets gain happiness, and the winner gains a little more. Up to 3 games a day with each friend count.
+- **Pals book:** every pet you've met, how many times, when, and your game record.
+- **Privacy:**
+  - It's off by default. The system asks for local network access the first time it's turned on.
+  - While it's on, the phone advertises the pet's name, life stage and mood, and nothing else. The peer name is a random token made once per install.
+  - Encryption is required on the connection.
+- **Code:**
+  - Messages: `Sources/PocketPetCore/Meetup/MeetupProtocol.swift` (versioned JSON).
+  - The session: `MeetupMachine`.
+  - The game: `PebbleGame`.
+  - Daily limits: `MeetupLedger`.
+  - Pals: `PalBook`.
+  - Transport and screens: `App/Sources/Meetup/`.
 
 Not yet tried on two real devices. That needs a manual check before release.
 
