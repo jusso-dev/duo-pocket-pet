@@ -26,6 +26,8 @@ final class AppModel {
     /// Meetups with nearby pets, or nil in tests and previews.
     let meetup: MeetupController?
     @ObservationIgnored private var isForeground = true
+    /// True while the Nearby screen is open.
+    private(set) var isNearbyOpen = false
     private let fold: any FoldStateService
     private let clock: @Sendable () -> Date
     private let tickInterval: Duration
@@ -64,19 +66,31 @@ final class AppModel {
         meetup?.currentCard = { [weak self] in
             PetCard(state: self?.state ?? .newborn(at: clock()))
         }
-        meetup?.applyBoost = { [weak self] in
+        meetup?.applyBoost = { [weak self] amount in
             guard let self else { return false }
-            return self.session.playedWithFriend(at: self.clock()) == .applied
+            return self.session.playedWithFriend(amount, at: self.clock()) == .applied
+        }
+        meetup?.applyGift = { [weak self] gift in
+            guard let self else { return false }
+            return self.session.received(gift, at: self.clock()) == .applied
         }
         updateMeetup()
     }
 
-    /// Meetups run while the stage or the standard layout is on screen and the
-    /// app is in the foreground. The controller does nothing unless the player opted in.
+    /// Meetups run while the stage, the standard layout or the Nearby screen
+    /// is showing and the app is in the foreground. On the stage, two
+    /// half-folded Duos invite each other straight away. The controller does
+    /// nothing unless the player opted in.
     private func updateMeetup() {
         guard let meetup else { return }
-        meetup.setActive(isForeground && (scene.kind == .stage || scene.kind == .standard))
+        let onStage = scene.kind == .stage
+        meetup.setActive(isForeground && (onStage || scene.kind == .standard || isNearbyOpen), autoInvite: onStage)
         meetup.petChanged()
+    }
+
+    func setNearbyOpen(_ open: Bool) {
+        isNearbyOpen = open
+        updateMeetup()
     }
 
     static func live(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppModel {

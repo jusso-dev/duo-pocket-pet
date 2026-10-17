@@ -22,8 +22,14 @@ public enum PixelIcon: String, CaseIterable, Sendable {
     case pair
     /// An exclamation in a bubble: the pet needs you.
     case attention
-    /// A small leaf: all is well.
+    /// A small leaf: all is well, and the leaf move in Leaf, Pebble, Twig.
     case leaf
+    /// A round stone: the pebble move.
+    case pebble
+    /// A forked stick: the twig move.
+    case twig
+    /// An arrow leaving a box: sharing a pet card.
+    case share
 
     public static let size = 9
 
@@ -152,6 +158,49 @@ public enum PixelIcon: String, CaseIterable, Sendable {
             ".##......",
             "#........",
         ]
+        case .pebble: [
+            ".........",
+            ".........",
+            "...###...",
+            ".##...##.",
+            "#.......#",
+            "#..#....#",
+            "#.......#",
+            ".#######.",
+            ".........",
+        ]
+        case .twig: [
+            "........#",
+            ".......#.",
+            "..#...#..",
+            "...#.#...",
+            "....#....",
+            "...#.....",
+            "..#......",
+            ".#.......",
+            "#........",
+        ]
+        case .share: [
+            "....#....",
+            "...###...",
+            "..#.#.#..",
+            "....#....",
+            "....#....",
+            "##.....##",
+            "#.......#",
+            "#.......#",
+            "#########",
+        ]
+        }
+    }
+}
+
+extension GameMove {
+    public var icon: PixelIcon {
+        switch self {
+        case .leaf: .leaf
+        case .pebble: .pebble
+        case .twig: .twig
         }
     }
 }
