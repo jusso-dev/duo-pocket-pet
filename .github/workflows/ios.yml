@@ -13,7 +13,7 @@ jobs:
   ios:
     name: Core tests and app build (xcode-27 image, hosted)
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       # The iPhone Duo hinge APIs (DeviceHinge, onHingeChange) ship in the iOS 27.1 SDK.
       MIN_SIM_SDK: "27.1"
@@ -79,16 +79,30 @@ jobs:
             echo "::error::No iOS simulator runtime at $MIN_SIM_SDK or later is available, even after downloading."
             exit 1
           fi
-          read -r dtype dname < <(xcrun simctl list devicetypes -j | python3 -c '
+          # Try the iPhone Duo first. If simctl refuses it on this runtime, fall back to the newest standard iPhone.
+          candidates=$(xcrun simctl list devicetypes -j | python3 -c '
           import json, sys
           types = [t for t in json.load(sys.stdin)["devicetypes"] if t["name"].startswith("iPhone")]
           duo = [t for t in types if "Duo" in t["name"]]
-          pick = duo[0] if duo else types[-1]
-          print(pick["identifier"], pick["name"])
+          rest = [t for t in types if "Duo" not in t["name"]]
+          for t in duo + rest[:1]:
+              print(t["identifier"] + "|" + t["name"])
           ')
-          if [[ "$dname" == *Duo* ]]; then kind="iPhone Duo"; else kind="standard iPhone (no Duo device type on this image)"; fi
+          udid=""
+          while IFS="|" read -r dtype dname; do
+            [ -z "$dtype" ] && continue
+            if udid=$(xcrun simctl create "CI $dname" "$dtype" "$runtime" 2>create.err); then
+              break
+            fi
+            echo "::warning::Could not create a $dname simulator on $runtime: $(tr '\n' ' ' < create.err)"
+            udid=""
+          done <<< "$candidates"
+          if [ -z "$udid" ]; then
+            echo "::error::Could not create any iPhone simulator on $runtime."
+            exit 1
+          fi
+          if [[ "$dname" == *Duo* ]]; then kind="iPhone Duo"; else kind="standard iPhone (iPhone Duo simulator not available here)"; fi
           echo "::notice::Simulator: $dname on $runtime. Device kind: $kind"
-          udid=$(xcrun simctl create "CI $dname" "$dtype" "$runtime")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Build and test the app on the simulator
