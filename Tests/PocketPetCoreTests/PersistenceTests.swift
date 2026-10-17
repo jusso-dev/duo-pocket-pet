@@ -96,6 +96,28 @@ struct PersistenceTests {
         #expect(try store.preserveUnreadableSave(at: t0) == nil)
     }
 
+    /// A hand-edited or buggy save must get the same clamps as `PetState.init`.
+    @Test func decodingClampsOutOfRangeValues() throws {
+        let json = #"""
+        {"ageSeconds":-500,"bornAt":"2027-01-15T08:00:00Z","energy":-0.5,"happiness":1.7,
+         "hunger":5,"hygiene":0.4,"isAsleep":false,"lastUpdated":"2027-01-15T08:00:00Z",
+         "name":"Moss","schemaVersion":1}
+        """#
+        let state = try PetCodec.decode(Data(json.utf8))
+        #expect(state.hunger == 1)
+        #expect(state.happiness == 1)
+        #expect(state.energy == 0)
+        #expect(state.hygiene == 0.4)
+        #expect(state.ageSeconds == 0)
+        #expect(state.name == "Moss")
+        #expect(state.bornAt == t0)
+        // A tick with no elapsed time used to leave the bad values in place.
+        var engine = PetEngine(state: state)
+        engine.tick(to: t0)
+        #expect(engine.state.ageSeconds == 0)
+        #expect(engine.state.hunger == 1)
+    }
+
     @Test func fileStoreSavesAndLoads() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hingeling-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

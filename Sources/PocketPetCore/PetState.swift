@@ -62,6 +62,26 @@ public struct PetState: Codable, Equatable, Sendable {
     public var mood: Mood { Mood(for: self) }
 }
 
+extension PetState {
+    /// Decodes through `init` so a hand-edited or buggy save gets the same
+    /// clamps as a new pet: meters in `0...1` and a non-negative age.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            name: try c.decode(String.self, forKey: .name),
+            hunger: try c.decode(Meter.self, forKey: .hunger),
+            happiness: try c.decode(Meter.self, forKey: .happiness),
+            energy: try c.decode(Meter.self, forKey: .energy),
+            hygiene: try c.decode(Meter.self, forKey: .hygiene),
+            ageSeconds: try c.decode(TimeInterval.self, forKey: .ageSeconds),
+            isAsleep: try c.decode(Bool.self, forKey: .isAsleep),
+            bornAt: try c.decode(Date.self, forKey: .bornAt),
+            lastUpdated: try c.decode(Date.self, forKey: .lastUpdated),
+            schemaVersion: try c.decode(Int.self, forKey: .schemaVersion)
+        )
+    }
+}
+
 /// How the pet feels right now. Derived from `PetState`, never stored.
 ///
 /// Cases are listed from most to least urgent. Art and glance views should
