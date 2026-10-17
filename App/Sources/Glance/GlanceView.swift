@@ -1,5 +1,6 @@
 import PocketPetCore
 import SwiftUI
+import UIKit
 
 /// The compact view shown while an iPhone Duo is closed.
 ///
@@ -60,9 +61,18 @@ struct GlanceView: View {
                 Image(systemName: content.needsAttention ? "exclamationmark.circle.fill" : "leaf.fill")
             }
             .font(.headline)
-            .foregroundStyle(content.needsAttention ? Color.orange : Color.secondary)
+            .foregroundStyle(content.needsAttention ? Color.glanceAttention : Color.secondary)
         }
     }
+}
+
+private extension Color {
+    /// Burnt orange in light mode and bright orange in dark mode, both at least
+    /// 4.5:1 on the system background. See `GlanceStyle`.
+    static let glanceAttention = Color(uiColor: UIColor { traits in
+        let c = traits.userInterfaceStyle == .dark ? GlanceStyle.attentionDark : GlanceStyle.attentionLight
+        return UIColor(red: c.red, green: c.green, blue: c.blue, alpha: 1)
+    })
 }
 
 // MARK: - Previews
