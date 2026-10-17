@@ -26,7 +26,9 @@ jobs:
           echo "Xcodes on this image:"
           ls -d /Applications/Xcode*.app || true
           chosen=""
-          for app in $(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -t_ -k2 -V -r); do
+          # Released builds first (newest first), then betas and release candidates.
+          all=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -t_ -k2 -V -r)
+          for app in $(echo "$all" | grep -viE 'beta|candidate') $(echo "$all" | grep -iE 'beta|candidate'); do
             [ -L "$app" ] && continue
             sdk=$(DEVELOPER_DIR="$app/Contents/Developer" xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null || echo 0)
             echo "$app -> iphonesimulator SDK $sdk"
@@ -58,16 +60,23 @@ jobs:
           set -euo pipefail
           echo "== Runtimes"; xcrun simctl list runtimes
           echo "== Device types"; xcrun simctl list devicetypes
-          runtime=$(xcrun simctl list runtimes -j | python3 -c '
+          pick_runtime='
           import json, os, sys
           want = [int(x) for x in os.environ["MIN_SIM_SDK"].split(".")]
           rts = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")]
           rts = [r for r in rts if [int(x) for x in r["version"].split(".")][:2] >= want]
           rts.sort(key=lambda r: [int(x) for x in r["version"].split(".")])
           print(rts[0]["identifier"] if rts else "")
-          ')
+          '
+          runtime=$(xcrun simctl list runtimes -j | python3 -c "$pick_runtime")
           if [ -z "$runtime" ]; then
-            echo "::error::No iOS simulator runtime at $MIN_SIM_SDK or later is installed."
+            echo "No iOS $MIN_SIM_SDK+ simulator runtime is installed, so downloading the one that matches the selected Xcode."
+            xcodebuild -downloadPlatform iOS
+            xcrun simctl list runtimes
+            runtime=$(xcrun simctl list runtimes -j | python3 -c "$pick_runtime")
+          fi
+          if [ -z "$runtime" ]; then
+            echo "::error::No iOS simulator runtime at $MIN_SIM_SDK or later is available, even after downloading."
             exit 1
           fi
           read -r dtype dname < <(xcrun simctl list devicetypes -j | python3 -c '
