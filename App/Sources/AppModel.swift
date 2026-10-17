@@ -45,19 +45,36 @@ final class AppModel {
         session.apply(fold.current, at: clock())
     }
 
-    static func live() -> AppModel {
-        let store = makeStore()
+    static func live(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppModel {
         #if targetEnvironment(simulator)
-        if ProcessInfo.processInfo.arguments.contains("-mockFold") {
-            // Start like the live hinge service, which reports `.unavailable`
-            // until its first callback. The demo script then closes it at once.
-            let mock = MockFoldStateService(initial: .unavailable)
-            Task { await mock.play(MockFoldStateService.demoScript) }
-            return AppModel(store: store, fold: mock)
+        // UI tests, screenshots and demos. See `DebugLaunchOptions`.
+        let options = DebugLaunchOptions(arguments: arguments, now: Date())
+        if options.isActive {
+            let store: any PetStore = options.pet.map { InMemoryPetStore($0) } ?? makeStore()
+            if options.playsDemoScript {
+                // Start like the live hinge service, which reports `.unavailable`
+                // until its first callback. The demo script then closes it at once.
+                let mock = MockFoldStateService(initial: .unavailable)
+                Task { await mock.play(MockFoldStateService.demoScript) }
+                return AppModel(store: store, fold: mock)
+            }
+            if let fold = options.fold {
+                return AppModel(store: store, fold: MockFoldStateService(initial: fold))
+            }
+            return liveFold(store: store)
         }
         #endif
-        let hinge = HingeFoldStateService()
-        return AppModel(store: store, fold: hinge, hinge: hinge)
+        return liveFold(store: makeStore())
+    }
+
+    /// The hinge on iOS 27.1 and later. Earlier systems have no hinge API at
+    /// all, so they get a fixed `.unavailable` and the standard layout.
+    private static func liveFold(store: any PetStore) -> AppModel {
+        if #available(iOS 27.1, *) {
+            let hinge = HingeFoldStateService()
+            return AppModel(store: store, fold: hinge, hinge: hinge)
+        }
+        return AppModel(store: store, fold: StaticFoldStateService(.unavailable))
     }
 
     /// The file store, or an in-memory one that remembers why, so the app can

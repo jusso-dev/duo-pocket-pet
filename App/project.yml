@@ -47,12 +47,25 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  HingelingUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Hingeling
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Hingeling
 schemes:
   Hingeling:
     build:
       targets:
         Hingeling: all
         HingelingTests: [test]
+        HingelingUITests: [test]
     test:
       targets:
         - HingelingTests
+        - HingelingUITests

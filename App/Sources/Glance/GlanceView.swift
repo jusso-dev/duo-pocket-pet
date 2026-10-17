@@ -66,7 +66,7 @@ struct GlanceView: View {
     }
 }
 
-private extension Color {
+extension Color {
     /// Burnt orange in light mode and bright orange in dark mode, both at least
     /// 4.5:1 on the system background. See `GlanceStyle`.
     static let glanceAttention = Color(uiColor: UIColor { traits in

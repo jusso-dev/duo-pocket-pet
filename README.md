@@ -25,7 +25,7 @@ Early development. The work is tracked in [issues](https://github.com/jusso-dev/
 Package.swift                  Swift package for the platform-free logic
 Sources/PocketPetCore/         Pet model, decay and ageing, persistence, fold postures, scene state machine
 Tests/PocketPetCoreTests/      Tests that run on Linux and macOS (`swift test`)
-App/                           SwiftUI iOS app (XcodeGen `project.yml`), needs a Mac
+App/                           SwiftUI iOS app (XcodeGen `project.yml`), unit tests in `App/Tests`, UI tests in `App/UITests`, needs a Mac
 .github/workflows/             CI: core tests and the app build on the hosted xcode-27 image
 scripts/                       Helper scripts, including the Mac build and test script
 ```
@@ -48,7 +48,17 @@ brew install xcodegen
 scripts/mac-build-and-test.sh
 ```
 
-The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on the newest available iPhone simulator, or on the one you name (`scripts/mac-build-and-test.sh "iPhone 18 Pro"`). Set `DUO_SIM` to also test on an iPhone Duo simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later.
+The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on the newest available iPhone simulator, or on the one you name (`scripts/mac-build-and-test.sh "iPhone 18 Pro"`). Set `DUO_SIM` to also test on an iPhone Duo simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later. On iOS earlier than 27.1 the app uses `StaticFoldStateService(.unavailable)` and the standard layout.
+
+### Launch arguments (simulator builds only)
+
+UI tests, screenshots and demos pick a scene and a pet with launch arguments, read by `DebugLaunchOptions`:
+
+| Argument | Effect |
+| --- | --- |
+| `-fold closed`, `open`, `unavailable`, `half` or `half:120` | Starts in that fold posture and stays there |
+| `-pet hungry,young` or `-pet joyful,elder,Moss` | Uses a sample pet in that mood and life stage, in memory only |
+| `-mockFold` | Plays the demo script: closed, open, half fold, closed |
 
 ## Fold APIs: verified and assumed
 

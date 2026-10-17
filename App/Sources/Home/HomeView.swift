@@ -25,7 +25,13 @@ struct HomeView: View {
                     content(spriteHeight: 160)
                 }
             } else {
-                content(spriteHeight: nil)
+                // Scrolls only when it has to, such as a small phone in landscape.
+                ViewThatFits(in: .vertical) {
+                    content(spriteHeight: nil)
+                    ScrollView {
+                        content(spriteHeight: 120)
+                    }
+                }
             }
         }
     }

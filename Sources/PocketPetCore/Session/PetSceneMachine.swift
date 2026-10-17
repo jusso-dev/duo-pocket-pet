@@ -43,6 +43,10 @@ public enum SceneEffect: Equatable, Sendable {
 /// after `.standard` counts as an open too, because it is the first fold
 /// reading the machine has seen.
 ///
+/// Going from the glance to `.standard` does nothing to the pet. A phone that
+/// stops reporting a hinge hasn't been opened, so a sleeping pet stays asleep
+/// and the standard layout offers the Wake button.
+///
 /// Once closed, a half-fold reading under `reopenThresholdDegrees` still counts
 /// as closed. A hinge settling at 1 or 2 degrees after it shuts, or a phone
 /// squeezed in a pocket, must not wake the pet or swap the glance for the stage.
@@ -70,6 +74,8 @@ public struct PetSceneMachine: Sendable {
         case (.glance?, .glance): return []
         case (_, .glance): return [.putToSleep]
         case (.standard?, .standard): return []
+        // Losing the hinge while closed is not an open. The Wake button takes over.
+        case (.glance?, .standard): return []
         // Launch, or leaving the glance, or the first fold reading after
         // "no hinge reading": all of these are an open.
         case (nil, _), (.glance?, _), (.standard?, _): return [.wakeUp]
