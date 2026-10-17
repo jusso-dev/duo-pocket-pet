@@ -44,6 +44,16 @@ struct PetSceneMachineTests {
     }
 }
 
+@Suite("PetScene kind")
+struct PetSceneKindTests {
+    @Test func angleDoesNotChangeTheKind() {
+        #expect(PetScene.stage(angleDegrees: 10).kind == PetScene.stage(angleDegrees: 170).kind)
+        #expect(PetScene.stage(angleDegrees: 90).kind == .stage)
+        #expect(PetScene.glance.kind != PetScene.home.kind)
+        #expect(PetScene.standard.kind == .standard)
+    }
+}
+
 @Suite("PetSceneMachine close hysteresis")
 struct CloseHysteresisTests {
     @Test(arguments: [0.5, 1.0, 1.5, 2.0, 10.0, 19.9])

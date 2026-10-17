@@ -9,12 +9,21 @@ import SwiftUI
 struct RootView: View {
     let model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content
-            .animation(.snappy, value: model.scene)
+            // Key on the kind, so a folding hinge doesn't restart the animation
+            // every 2 degrees, and skip it entirely with Reduce Motion on.
+            .animation(reduceMotion ? nil : .snappy, value: model.scene.kind)
             .task { await model.run() }
             .modifier(OptionalHingeReader(service: model.hinge))
+            .safeAreaInset(edge: .top) {
+                // Not on the glance: it is the whole outer screen while closed.
+                if model.scene != .glance, let notice = model.storageNotice {
+                    StorageNoticeBanner(text: notice, onDismiss: model.dismissStorageNotice)
+                }
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.becameActive() } else { model.enteredBackground() }
             }
@@ -44,5 +53,30 @@ private struct OptionalHingeReader: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// A small banner for save problems, so the player knows when progress won't be kept.
+private struct StorageNoticeBanner: View {
+    let text: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Dismiss", systemImage: "xmark", action: onDismiss)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+        .accessibilityElement(children: .combine)
     }
 }

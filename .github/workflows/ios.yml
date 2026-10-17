@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege: the job only checks out code and uploads an artifact.
+permissions:
+  contents: read
+
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
@@ -19,7 +23,7 @@ jobs:
       # The iPhone Duo hinge APIs (DeviceHinge, onHingeChange) ship in the iOS 27.1 SDK.
       MIN_SIM_SDK: "27.1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Pick the newest Xcode with the iPhone Duo SDK
         run: |
@@ -71,6 +75,9 @@ jobs:
           '
           runtime=$(xcrun simctl list runtimes -j | python3 -c "$pick_runtime")
           if [ -z "$runtime" ]; then
+            # Not cached with actions/cache: the runtime image is several GB, more
+            # than a cache save and restore would take, and close to the repo's
+            # 10 GB cache limit. The download from Apple takes about 2 minutes.
             echo "No iOS $MIN_SIM_SDK+ simulator runtime is installed, so downloading the one that matches the selected Xcode."
             xcodebuild -downloadPlatform iOS
             xcrun simctl list runtimes
@@ -120,7 +127,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Hingeling-xcresult
           path: build/Hingeling.xcresult

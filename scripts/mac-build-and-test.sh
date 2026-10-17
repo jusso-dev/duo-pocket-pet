@@ -1,10 +1,32 @@
 #!/usr/bin/env bash
 # Builds and tests Hingeling on a Mac. Needs Xcode with the iOS 27.1 SDK or later.
 # Usage: scripts/mac-build-and-test.sh [simulator name]
+# With no name it uses the newest available iPhone simulator, as CI does.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SIM="${1:-iPhone 17}"
+newest_iphone() {
+  xcrun simctl list devices available -j | python3 -c '
+import json, sys
+best = None
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    if ".iOS-" not in runtime:
+        continue
+    version = [int(x) for x in runtime.rsplit(".iOS-", 1)[1].split("-")]
+    for d in devices:
+        if d["name"].startswith("iPhone"):
+            key = (version, d["name"])
+            if best is None or key > best[0]:
+                best = (key, d["name"])
+print(best[1] if best else "")
+'
+}
+
+SIM="${1:-}"
+if [[ -z "$SIM" ]]; then
+  SIM="$(newest_iphone)"
+  [[ -n "$SIM" ]] || { echo "No iPhone simulator is available. Create one in Xcode, or pass a name."; exit 1; }
+fi
 DERIVED="${DERIVED_DATA:-$PWD/build/DerivedData}"
 
 echo "== Toolchain"
