@@ -59,6 +59,13 @@ UI tests, screenshots and demos pick a scene and a pet with launch arguments, re
 | `-fold closed`, `open`, `unavailable`, `half` or `half:120` | Starts in that fold posture and stays there |
 | `-pet hungry,young` or `-pet joyful,elder,Moss` | Uses a sample pet in that mood and life stage, in memory only |
 | `-mockFold` | Plays the demo script: closed, open, half fold, closed |
+| `-fastRules` | Needs move an hour's worth every 10 seconds, and reminders can fire 10 seconds out |
+
+## Reminders
+
+Hingeling uses local notifications only, with no server. Permission is asked after the player's first feed, never at launch. Every save replans at most two reminders (hungry, needs a wash) with `ReminderPlanner`, so feeding cancels a pending hunger reminder. Quiet hours run from 21:00 to 08:00 local time. While the pet sleeps there are no reminders, except an opt-in good morning note.
+
+To check one by hand on the simulator: launch with `-fastRules -fold unavailable`, feed once and allow notifications, then go to the home screen and wait about a minute.
 
 ## Fold APIs: verified and assumed
 

@@ -17,6 +17,12 @@ final class AppModel {
     /// True once the player has dismissed the storage notice for this launch.
     private(set) var storageNoticeDismissed = false
     let hinge: HingeFoldStateService?
+    /// Local reminders, or nil in tests and previews.
+    @ObservationIgnored let reminders: ReminderScheduler?
+    /// True once the player has fed the pet, which is when reminders are first offered.
+    private(set) var remindersOffered: Bool
+    /// The opt-in good morning note while the pet sleeps.
+    private(set) var morningNoteEnabled: Bool
     private let fold: any FoldStateService
     private let clock: @Sendable () -> Date
     private let tickInterval: Duration
@@ -33,15 +39,22 @@ final class AppModel {
         store: any PetStore,
         fold: any FoldStateService,
         hinge: HingeFoldStateService? = nil,
+        reminders: ReminderScheduler? = nil,
+        rules: PetRules = .standard,
         clock: @escaping @Sendable () -> Date = { Date() },
         tickInterval: Duration = .seconds(30)
     ) {
         self.fold = fold
         self.hinge = hinge
+        self.reminders = reminders
         self.clock = clock
         self.tickInterval = tickInterval
+        remindersOffered = reminders?.hasAskedPermission ?? false
+        morningNoteEnabled = reminders?.morningNote ?? false
         storageFallbackReason = (store as? InMemoryPetStore)?.fallbackReason
-        session = PetSession(store: store, now: clock())
+        // Every save replans the reminders, so feeding cancels a hunger reminder.
+        let observed: any PetStore = reminders.map { ReminderObservingStore(base: store, scheduler: $0) } ?? store
+        session = PetSession(store: observed, rules: rules, now: clock())
         session.apply(fold.current, at: clock())
     }
 
@@ -59,22 +72,27 @@ final class AppModel {
                 return AppModel(store: store, fold: mock)
             }
             if let fold = options.fold {
-                return AppModel(store: store, fold: MockFoldStateService(initial: fold))
+                return AppModel(store: store, fold: MockFoldStateService(initial: fold), reminders: debugReminders(options), rules: options.rules)
             }
-            return liveFold(store: store)
+            return liveFold(store: store, reminders: debugReminders(options), rules: options.rules)
         }
         #endif
-        return liveFold(store: makeStore())
+        return liveFold(store: makeStore(), reminders: ReminderScheduler())
+    }
+
+    /// Reminders on the simulator, planned with the debug rules so `-fastRules` speeds them up too.
+    private static func debugReminders(_ options: DebugLaunchOptions) -> ReminderScheduler {
+        ReminderScheduler(planner: ReminderPlanner(rules: options.rules, minimumLead: options.fastRules ? 10 : 15 * 60))
     }
 
     /// The hinge on iOS 27.1 and later. Earlier systems have no hinge API at
     /// all, so they get a fixed `.unavailable` and the standard layout.
-    private static func liveFold(store: any PetStore) -> AppModel {
+    private static func liveFold(store: any PetStore, reminders: ReminderScheduler, rules: PetRules = .standard) -> AppModel {
         if #available(iOS 27.1, *) {
             let hinge = HingeFoldStateService()
-            return AppModel(store: store, fold: hinge, hinge: hinge)
+            return AppModel(store: store, fold: hinge, hinge: hinge, reminders: reminders, rules: rules)
         }
-        return AppModel(store: store, fold: StaticFoldStateService(.unavailable))
+        return AppModel(store: store, fold: StaticFoldStateService(.unavailable), reminders: reminders, rules: rules)
     }
 
     /// The file store, or an in-memory one that remembers why, so the app can
@@ -176,7 +194,17 @@ final class AppModel {
     func perform(_ action: PetAction) -> ActionResult {
         let result = session.perform(action, at: clock())
         if case .refused(let reason) = result { lastRefusal = reason } else { lastRefusal = nil }
+        if action == .feed, result == .applied, let reminders {
+            // Permission is asked after the first feed, never at launch.
+            reminders.playerFed()
+            remindersOffered = true
+        }
         return result
+    }
+
+    func setMorningNote(_ enabled: Bool) {
+        reminders?.morningNote = enabled
+        morningNoteEnabled = enabled
     }
 }
 

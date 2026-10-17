@@ -78,6 +78,15 @@ struct HomeView: View {
             }
 
             ActionRow(buttons: buttons, dynamicTypeSize: dynamicTypeSize)
+
+            if model.remindersOffered {
+                Toggle(
+                    "Good morning note while \(model.state.name) sleeps",
+                    isOn: Binding(get: { model.morningNoteEnabled }, set: { model.setMorningNote($0) })
+                )
+                .font(.footnote)
+                .accessibilityHint("Sends one note at 8 am while your pet is asleep")
+            }
         }
     }
 

@@ -34,3 +34,18 @@ struct DebugLaunchOptionsTests {
         #expect(DebugLaunchOptions(arguments: ["-mockFold"], now: now).playsDemoScript)
     }
 }
+
+@Suite("Fast rules")
+struct FastRulesTests {
+    @Test func fastRulesRunAnHourEveryTenSeconds() {
+        let options = DebugLaunchOptions(arguments: ["-fastRules"], now: Date())
+        #expect(options.isActive)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        var fast = PetEngine(state: PetState(bornAt: t0), rules: options.rules)
+        var slow = PetEngine(state: PetState(bornAt: t0))
+        fast.tick(to: t0.addingTimeInterval(10))
+        slow.tick(to: t0.addingTimeInterval(3600))
+        #expect(abs(fast.state.hunger - slow.state.hunger) < 0.0001)
+        #expect(DebugLaunchOptions(arguments: [], now: t0).rules == .standard)
+    }
+}
