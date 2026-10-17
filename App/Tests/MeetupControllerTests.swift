@@ -168,6 +168,8 @@ struct MeetupControllerTests {
         #expect(await eventually { b.state.hunger < hunger })
         #expect(b.meetup?.news == "Bip sent a snack.")
         for _ in 1..<MeetupLedger.giftsPerPairPerDay { a.meetup?.send(.snack) }
+        // Three snacks of 0.15 each.
+        #expect(await eventually { abs(b.state.hunger - (hunger - 0.45)) < 0.001 })
         let afterLimit = b.state.hunger
         a.meetup?.send(.snack)
         #expect(await eventually { (b.meetup?.news ?? "").contains("plenty for today") })
