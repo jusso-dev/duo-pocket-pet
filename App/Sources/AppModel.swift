@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import PocketPetCore
+#if canImport(os)
+import os
+#endif
 
 /// The app's single source of truth. Listens to a `FoldStateService`,
 /// forwards postures and button taps to `PetSession`, and ticks every 30 seconds.
@@ -9,6 +12,10 @@ import PocketPetCore
 final class AppModel {
     private(set) var session: PetSession
     private(set) var lastRefusal: ActionResult.Refusal?
+    /// Why the pet can't be kept between launches, if the file store failed.
+    let storageFallbackReason: String?
+    /// True once the player has dismissed the storage notice for this launch.
+    private(set) var storageNoticeDismissed = false
     let hinge: HingeFoldStateService?
     private let fold: any FoldStateService
     private let clock: @Sendable () -> Date
@@ -33,12 +40,13 @@ final class AppModel {
         self.hinge = hinge
         self.clock = clock
         self.tickInterval = tickInterval
+        storageFallbackReason = (store as? InMemoryPetStore)?.fallbackReason
         session = PetSession(store: store, now: clock())
         session.apply(fold.current, at: clock())
     }
 
     static func live() -> AppModel {
-        let store: any PetStore = (try? FilePetStore.standard()) ?? InMemoryPetStore()
+        let store = makeStore()
         #if targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("-mockFold") {
             let mock = MockFoldStateService(initial: .closed)
@@ -48,6 +56,48 @@ final class AppModel {
         #endif
         let hinge = HingeFoldStateService()
         return AppModel(store: store, fold: hinge, hinge: hinge)
+    }
+
+    /// The file store, or an in-memory one that remembers why, so the app can
+    /// tell the player that nothing will be kept. The failure is logged.
+    static func makeStore(_ makeFileStore: () throws -> any PetStore = { try FilePetStore.standard() }) -> any PetStore {
+        do {
+            return try makeFileStore()
+        } catch {
+            #if canImport(os)
+            Logger(subsystem: "dev.jusso.hingeling", category: "storage")
+                .error("No file store, using memory only: \(String(describing: error), privacy: .public)")
+            #endif
+            return InMemoryPetStore(fallbackReason: String(describing: error))
+        }
+    }
+
+    /// A short message about saving, for the banner, or nil when all is well.
+    /// `recoveredFromError` and `lastSaveError` used to be set but never shown.
+    var storageNotice: String? {
+        let name = session.state.name
+        if session.lastSaveError != nil, session.isSavingEnabled, storageFallbackReason == nil {
+            // A failed write. Shown until a save works again, even if dismissed.
+            return "Couldn't save \(name) just now. The app will try again shortly."
+        }
+        if storageNoticeDismissed { return nil }
+        if storageFallbackReason != nil {
+            return "\(name) can't be saved on this device right now, so progress will be lost when the app closes."
+        }
+        if !session.isSavingEnabled {
+            return "Your saved pet couldn't be read, so this session won't be saved. The old save hasn't been touched."
+        }
+        if session.recoveredFromError != nil {
+            let kept = session.preservedUnreadableSave.map { " A copy was kept as \($0.lastPathComponent)." } ?? ""
+            return "Your saved pet couldn't be read, so \(name) has just hatched.\(kept)"
+        }
+        return nil
+    }
+
+    /// Hides the notice for the rest of this launch. A failed write still shows,
+    /// because it is new information each time.
+    func dismissStorageNotice() {
+        storageNoticeDismissed = true
     }
 
     /// Starts listening. Called from `RootView.task`, cancelled with the view.

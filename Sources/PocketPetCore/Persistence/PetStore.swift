@@ -24,14 +24,18 @@ extension PetStore {
     }
 }
 
-/// For tests and previews.
+/// For tests and previews, and the app's fallback when there's nowhere to save.
 public final class InMemoryPetStore: PetStore, @unchecked Sendable {
     private let lock = NSLock()
     private var stored: PetState?
     private var _saveCount = 0
+    /// Set when the app is using this store only because the real one failed.
+    /// Nothing survives a relaunch, so the app should say so.
+    public let fallbackReason: String?
 
-    public init(_ state: PetState? = nil) {
+    public init(_ state: PetState? = nil, fallbackReason: String? = nil) {
         stored = state
+        self.fallbackReason = fallbackReason
     }
 
     public var saveCount: Int { lock.withLock { _saveCount } }

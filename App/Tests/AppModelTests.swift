@@ -85,6 +85,47 @@ struct AppModelTests {
         #expect(try store.load()?.lastUpdated == clock.now)
     }
 
+    @Test func fileStoreFailureFallsBackVisibly() {
+        struct NoDisk: Error {}
+        let store = AppModel.makeStore { throw NoDisk() }
+        #expect((store as? InMemoryPetStore)?.fallbackReason != nil)
+        let model = AppModel(store: store, fold: MockFoldStateService(initial: .open), clock: { [t0] in t0 })
+        #expect(model.storageNotice?.contains("can't be saved") == true)
+        model.dismissStorageNotice()
+        #expect(model.storageNotice == nil)
+    }
+
+    @Test func corruptSaveIsShownWithTheKeptCopy() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hingeling-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("pet.json")
+        try Data("not json".utf8).write(to: url)
+        let model = AppModel(store: FilePetStore(url: url), fold: MockFoldStateService(initial: .open), clock: { [t0] in t0 })
+        let notice = try #require(model.storageNotice)
+        #expect(notice.contains("pet.corrupt-20270115T080000Z.json"))
+        model.dismissStorageNotice()
+        #expect(model.storageNotice == nil)
+    }
+
+    @Test func failedWritesAreShown() {
+        final class FailingStore: PetStore, @unchecked Sendable {
+            struct Full: Error {}
+            func load() throws -> PetState? { nil }
+            func save(_ state: PetState) throws { throw Full() }
+            func preserveUnreadableSave(at date: Date) throws -> URL? { nil }
+        }
+        let model = AppModel(store: FailingStore(), fold: MockFoldStateService(initial: .open), clock: { [t0] in t0 })
+        #expect(model.session.lastSaveError != nil)
+        model.dismissStorageNotice()
+        #expect(model.storageNotice?.contains("Couldn't save") == true)
+    }
+
+    @Test func healthyStoreShowsNoNotice() {
+        let model = AppModel(store: InMemoryPetStore(), fold: MockFoldStateService(initial: .open), clock: { [t0] in t0 })
+        #expect(model.storageNotice == nil)
+    }
+
     @Test func noHingeUsesStandardLayout() {
         let model = AppModel(store: InMemoryPetStore(), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
         #expect(model.scene == .standard)
