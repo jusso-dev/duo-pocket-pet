@@ -33,7 +33,13 @@ struct StageView: View {
                 intensity: StageLighting.spotlightIntensity(hingeDegrees: angleDegrees)
             )
             VStack(spacing: 12) {
-                PetSpriteView(state: model.state, onStage: routine.usesStageFrames, maxScale: 10)
+                HStack(spacing: 8) {
+                    PetSpriteView(state: model.state, onStage: routine.usesStageFrames, maxScale: 10)
+                    if let friend = model.meetup?.status.friend {
+                        // A visiting pet dances alongside.
+                        PetSpriteView(state: .sample(mood: friend.mood, stage: friend.stage, name: friend.name), onStage: true, maxScale: 10)
+                    }
+                }
                 Text(routine.caption(petName: model.state.name))
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -59,6 +65,10 @@ struct StageView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if let meetup = model.meetup {
+                MeetupPanel(meetup: meetup, petName: model.state.name, showsFriend: false)
+                    .frame(maxWidth: 420)
             }
         }
         .padding()

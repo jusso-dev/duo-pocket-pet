@@ -115,6 +115,14 @@ public struct PetSession {
         return result
     }
 
+    /// Played with a nearby pet. The caller checks `MeetupLedger` first.
+    @discardableResult
+    public mutating func playedWithFriend(at now: Date) -> ActionResult {
+        let result = engine.meetupBoost(at: now)
+        if result.wasApplied { save() }
+        return result
+    }
+
     public mutating func tick(to now: Date) {
         engine.tick(to: now)
         save()

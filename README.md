@@ -68,6 +68,17 @@ Hingeling uses local notifications only, with no server. Permission is asked aft
 
 To check one by hand on the simulator: launch with `-fastRules -fold unavailable`, feed once and allow notifications, then go to the home screen and wait about a minute.
 
+## Meeting other pets
+
+With "Meet nearby pets" turned on, two Hingeling pets nearby can play together. On iPhone Duo that happens while the phone is half folded; on any other iPhone it happens from the standard layout. Both pets get a happiness boost, at most once per pair per day.
+
+- Off by default. The system asks for local network access the first time it's turned on (`NSLocalNetworkUsageDescription`).
+- Transport: MultipeerConnectivity, service type `hingeling`, encryption required. The peer name is a random token made once per install, never the device or player name.
+- Messages (`Sources/PocketPetCore/Meetup/MeetupProtocol.swift`): versioned JSON carrying only the pet's name, life stage and mood.
+- Handshake (`MeetupMachine`): hello, play invites, eight seconds of play, then goodbye. Timeouts, version mismatches and dropped connections end the meetup with no boost.
+
+Not yet tried on two real devices. That needs a manual check before release.
+
 ## Fold APIs: verified and assumed
 
 Fold handling sits behind the `FoldStateService` protocol in `PocketPetCore`, so the logic can be tested with `MockFoldStateService` and a normal iPhone gets a clean fallback (`FoldPosture.unavailable`).
