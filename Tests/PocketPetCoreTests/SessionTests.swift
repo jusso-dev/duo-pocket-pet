@@ -29,12 +29,14 @@ struct PetSceneMachineTests {
         (.open, .partiallyOpen(angleDegrees: 120), [], .stage(angleDegrees: 120)),
         (.partiallyOpen(angleDegrees: 120), .open, [], .home),
         (.open, .open, [], .home),
-        (.closed, .unavailable, [.wakeUp], .standard),
+        (.closed, .unavailable, [], .standard),
         (.unavailable, .open, [.wakeUp], .home),
         (.unavailable, .partiallyOpen(angleDegrees: 100), [.wakeUp], .stage(angleDegrees: 100)),
         (.unavailable, .closed, [.putToSleep], .glance),
         (.unavailable, .unavailable, [], .standard),
         (.open, .unavailable, [], .standard),
+        (.partiallyOpen(angleDegrees: 80), .partiallyOpen(angleDegrees: 140), [], .stage(angleDegrees: 140)),
+        (.partiallyOpen(angleDegrees: 80), .unavailable, [], .standard),
     ])
     func transitions(from: FoldPosture, to: FoldPosture, effects: [SceneEffect], scene: PetScene) {
         var machine = PetSceneMachine()

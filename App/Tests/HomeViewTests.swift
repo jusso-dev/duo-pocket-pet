@@ -55,4 +55,24 @@ struct HomeViewTests {
         renderer.scale = 1
         #expect(try #require(renderer.uiImage).size == screen)
     }
+
+    /// Smallest and largest iPhones, both orientations, and a narrow Split View
+    /// width. The standard layout fills the space it is given at every size.
+    @Test(arguments: [
+        CGSize(width: 320, height: 548),   // narrow Split View column, or the smallest phone
+        CGSize(width: 375, height: 647),   // 4.7 inch portrait
+        CGSize(width: 667, height: 355),   // 4.7 inch landscape
+        CGSize(width: 440, height: 896),   // Pro Max portrait
+        CGSize(width: 956, height: 400),   // Pro Max landscape
+    ])
+    func standardLayoutFillsEveryScreen(screen: CGSize) throws {
+        for size in [DynamicTypeSize.large, .accessibility3] {
+            let model = AppModel(store: InMemoryPetStore(PetState(hunger: 0.9, bornAt: t0)), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
+            let renderer = ImageRenderer(content: StandardHomeView(model: model)
+                .environment(\.dynamicTypeSize, size)
+                .frame(width: screen.width, height: screen.height))
+            renderer.scale = 1
+            #expect(try #require(renderer.uiImage).size == screen, "at \(size)")
+        }
+    }
 }
