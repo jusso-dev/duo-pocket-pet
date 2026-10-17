@@ -16,7 +16,7 @@ struct PetSceneMachineTests {
         var half = PetSceneMachine()
         #expect(half.handle(.partiallyOpen(angleDegrees: 90)) == [.wakeUp])
         var none = PetSceneMachine()
-        #expect(none.handle(.unavailable) == [])
+        #expect(none.handle(.unavailable) == [.wakeUp])
         #expect(none.scene == .standard)
     }
 
@@ -29,15 +29,72 @@ struct PetSceneMachineTests {
         (.open, .partiallyOpen(angleDegrees: 120), [], .stage(angleDegrees: 120)),
         (.partiallyOpen(angleDegrees: 120), .open, [], .home),
         (.open, .open, [], .home),
-        (.closed, .unavailable, [], .standard),
-        (.unavailable, .open, [], .home),
+        (.closed, .unavailable, [.wakeUp], .standard),
+        (.unavailable, .open, [.wakeUp], .home),
+        (.unavailable, .partiallyOpen(angleDegrees: 100), [.wakeUp], .stage(angleDegrees: 100)),
         (.unavailable, .closed, [.putToSleep], .glance),
+        (.unavailable, .unavailable, [], .standard),
+        (.open, .unavailable, [], .standard),
     ])
     func transitions(from: FoldPosture, to: FoldPosture, effects: [SceneEffect], scene: PetScene) {
         var machine = PetSceneMachine()
         _ = machine.handle(from)
         #expect(machine.handle(to) == effects)
         #expect(machine.scene == scene)
+    }
+}
+
+@Suite("PetScene kind")
+struct PetSceneKindTests {
+    @Test func angleDoesNotChangeTheKind() {
+        #expect(PetScene.stage(angleDegrees: 10).kind == PetScene.stage(angleDegrees: 170).kind)
+        #expect(PetScene.stage(angleDegrees: 90).kind == .stage)
+        #expect(PetScene.glance.kind != PetScene.home.kind)
+        #expect(PetScene.standard.kind == .standard)
+    }
+}
+
+@Suite("PetSceneMachine close hysteresis")
+struct CloseHysteresisTests {
+    @Test(arguments: [0.5, 1.0, 1.5, 2.0, 10.0, 19.9])
+    func settleAfterClosingStaysClosed(angle: Double) {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        let settle = FoldPosture(reading: HingeReading(status: .partiallyOpen, angleDegrees: angle))
+        #expect(machine.handle(settle) == [])
+        #expect(machine.scene == .glance)
+        #expect(machine.handle(.closed) == [])
+    }
+
+    @Test func genuineReopenStillWakes() {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        _ = machine.handle(.partiallyOpen(angleDegrees: 1.5))
+        #expect(machine.handle(.partiallyOpen(angleDegrees: 20)) == [.wakeUp])
+        #expect(machine.scene == .stage(angleDegrees: 20))
+        // Below the threshold again, but no longer closed: the stage follows the hinge.
+        #expect(machine.handle(.partiallyOpen(angleDegrees: 5)) == [])
+        #expect(machine.scene == .stage(angleDegrees: 5))
+        #expect(machine.handle(.closed) == [.putToSleep])
+    }
+
+    @Test func fullOpenAfterSettleWakes() {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        _ = machine.handle(.partiallyOpen(angleDegrees: 2))
+        #expect(machine.handle(.open) == [.wakeUp])
+    }
+
+    /// The repro from the review: closed, then a 1.5 degree settle.
+    @Test func sessionStaysAsleepThroughASettle() {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.closed, at: t0)
+        let saves = store.saveCount
+        session.apply(FoldPosture(reading: .init(status: .partiallyOpen, angleDegrees: 1.5)), at: t0)
+        #expect(session.scene == .glance)
+        #expect(session.state.isAsleep)
+        #expect(store.saveCount == saves)
     }
 }
 
@@ -72,6 +129,84 @@ struct PetSessionTests {
         #expect(abs(session.state.energy - 0.6) < 0.0001)
     }
 
+    /// The live hinge service starts at `.unavailable`, so this is the real
+    /// launch path on an iPhone Duo: no reading, then the first open reading.
+    @Test func launchWithNoHingeReadingThenOpenWakesSavedSleeper() {
+        let store = InMemoryPetStore(PetState(energy: 0.3, isAsleep: true, bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.unavailable, at: t0)
+        #expect(session.scene == .standard)
+        #expect(!session.state.isAsleep)
+        session.apply(.open, at: t0)
+        #expect(session.scene == .home)
+        #expect(!session.state.isAsleep)
+        #expect(session.perform(.feed, at: t0) != .refused(.asleep))
+    }
+
+    /// A standard iPhone never gets a hinge reading. A pet saved asleep must
+    /// still wake on launch, like opening the phone.
+    @Test func launchWithNoHingeWakesSavedSleeper() throws {
+        let store = InMemoryPetStore(PetState(isAsleep: true, bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.unavailable, at: t0)
+        #expect(session.scene == .standard)
+        #expect(!session.state.isAsleep)
+        #expect(try store.load()?.isAsleep == false)
+    }
+
+    /// The first reading after `.unavailable` can be a close. The pet then sleeps.
+    @Test func launchWithNoHingeReadingThenClosedSleeps() {
+        var session = PetSession(store: InMemoryPetStore(PetState(isAsleep: true, bornAt: t0)), now: t0)
+        session.apply(.unavailable, at: t0)
+        session.apply(.closed, at: t0)
+        #expect(session.scene == .glance)
+        #expect(session.state.isAsleep)
+    }
+
+    /// A slow open sends a half-fold reading every 2 degrees. Only the change
+    /// of scene should hit the disk, not every angle.
+    @Test func hingeWobbleDoesNotSaveEveryAngle() {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.closed, at: t0)
+        let before = store.saveCount
+        var clock = t0
+        for angle in stride(from: 10.0, through: 170.0, by: 2.0) {
+            clock = clock.addingTimeInterval(0.05)
+            session.apply(.partiallyOpen(angleDegrees: angle), at: clock)
+        }
+        // Closed to half fold wakes the pet: one save. The other 80 angles: none.
+        #expect(store.saveCount == before + 1)
+        #expect(session.scene == .stage(angleDegrees: 170))
+        session.apply(.open, at: clock)
+        #expect(store.saveCount == before + 2)
+    }
+
+    @Test func pendingAngleChangesSaveOnDemand() throws {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.partiallyOpen(angleDegrees: 90), at: t0)
+        session.apply(.partiallyOpen(angleDegrees: 100), at: hours(0.1))
+        #expect(session.hasUnsavedChanges)
+        let before = store.saveCount
+        session.saveIfNeeded()
+        #expect(store.saveCount == before + 1)
+        #expect(try store.load()?.lastUpdated == hours(0.1))
+        #expect(!session.hasUnsavedChanges)
+        session.saveIfNeeded()
+        #expect(store.saveCount == before + 1)
+    }
+
+    @Test func tickStillSavesPendingChanges() throws {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.partiallyOpen(angleDegrees: 90), at: t0)
+        session.apply(.partiallyOpen(angleDegrees: 120), at: t0)
+        session.tick(to: hours(1))
+        #expect(!session.hasUnsavedChanges)
+        #expect(try store.load()?.lastUpdated == hours(1))
+    }
+
     @Test func homeActionsApplyAndSave() {
         let store = InMemoryPetStore(PetState(hunger: 0.8, happiness: 0.4, energy: 0.6, hygiene: 0.4, bornAt: t0))
         var session = PetSession(store: store, now: t0)
@@ -93,14 +228,36 @@ struct PetSessionTests {
         #expect(session.perform(.wake, at: hours(1)) == .applied)
     }
 
+    /// A store that can't decode its save and has no way to move it aside.
+    final class UnpreservableStore: PetStore, @unchecked Sendable {
+        let loadError: any Error
+        private(set) var saves = 0
+        init(loadError: any Error) { self.loadError = loadError }
+        func load() throws -> PetState? { throw loadError }
+        func save(_ state: PetState) throws { saves += 1 }
+    }
+
     @Test func corruptSaveStartsFreshPet() {
-        struct BrokenStore: PetStore {
-            func load() throws -> PetState? { throw PetCodecError.corrupt("bad") }
-            func save(_ state: PetState) throws {}
-        }
-        let session = PetSession(store: BrokenStore(), now: t0)
+        let store = UnpreservableStore(loadError: PetCodecError.corrupt("bad"))
+        var session = PetSession(store: store, now: t0)
         #expect(session.recoveredFromError != nil)
         #expect(session.state.ageSeconds == 0)
+        // The store can't keep the bad save, so the session must never write over it.
+        session.apply(.open, at: hours(1))
+        _ = session.perform(.play, at: hours(1))
+        session.tick(to: hours(2))
+        #expect(store.saves == 0)
+        #expect(!session.isSavingEnabled)
+        #expect(session.lastSaveError != nil)
+    }
+
+    @Test func unreadableSaveIsNeverOverwritten() {
+        struct Locked: Error {}
+        let store = UnpreservableStore(loadError: Locked())
+        var session = PetSession(store: store, now: t0)
+        session.apply(.open, at: t0)
+        #expect(store.saves == 0)
+        #expect(!session.isSavingEnabled)
     }
 
     @Test func mockDrivenFullLoop() async {
