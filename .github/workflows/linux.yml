@@ -25,7 +25,7 @@ jobs:
 
       - name: No Apple UI frameworks in the core package
         run: |
-          if grep -rnE '^\s*import (SwiftUI|UIKit|Combine)\b' Sources/; then
+          if grep -rnE '^\s*(@[A-Za-z_]+(\([^)]*\))?\s+)*import\s+(SwiftUI|UIKit|Combine)\b' Sources/; then
             echo "::error::Sources/PocketPetCore must stay platform-free."
             exit 1
           fi
