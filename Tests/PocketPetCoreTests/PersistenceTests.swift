@@ -118,6 +118,14 @@ struct PersistenceTests {
         #expect(engine.state.hunger == 1)
     }
 
+    @Test(arguments: ["", "   ", "\n"])
+    func decodingAnEmptyNameFallsBackToTheDefault(name: String) throws {
+        var state = PetState(name: "Moss", bornAt: t0)
+        state.name = name
+        let decoded = try PetCodec.decode(PetCodec.encode(state))
+        #expect(decoded.name == "Bip")
+    }
+
     @Test func fileStoreSavesAndLoads() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hingeling-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

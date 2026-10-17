@@ -67,8 +67,9 @@ extension PetState {
     /// clamps as a new pet: meters in `0...1` and a non-negative age.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try c.decode(String.self, forKey: .name)
         self.init(
-            name: try c.decode(String.self, forKey: .name),
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Bip" : name,
             hunger: try c.decode(Meter.self, forKey: .hunger),
             happiness: try c.decode(Meter.self, forKey: .happiness),
             energy: try c.decode(Meter.self, forKey: .energy),
@@ -202,15 +203,14 @@ public struct PetEngine: Sendable {
 
     /// Applies decay and ageing for the time since `state.lastUpdated`.
     ///
-    /// If `now` is earlier than `lastUpdated` (the clock went backwards), no decay
-    /// is applied and `lastUpdated` moves to `now`. Long gaps are capped at
-    /// `rules.maxCatchUp` for decay, but age always advances by the full gap.
+    /// `lastUpdated` is a high-water mark. If `now` is earlier (the clock went
+    /// backwards), nothing happens and `lastUpdated` stays where it is, so the
+    /// same stretch of time is never counted twice once the clock catches up.
+    /// Long gaps are capped at `rules.maxCatchUp` for decay, but age always
+    /// advances by the full gap.
     public mutating func tick(to now: Date) {
         let elapsed = now.timeIntervalSince(state.lastUpdated)
-        guard elapsed > 0 else {
-            state.lastUpdated = now
-            return
-        }
+        guard elapsed > 0 else { return }
         state.ageSeconds += elapsed
         var remaining = min(elapsed, rules.maxCatchUp)
         while remaining > 0 {
