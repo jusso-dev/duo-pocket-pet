@@ -2,6 +2,7 @@ import Foundation
 import PocketPetCore
 import SwiftUI
 import Testing
+import UIKit
 @testable import Hingeling
 
 @MainActor
@@ -28,11 +29,14 @@ struct GlanceViewTests {
         }
     }
 
-    @Test func rendersAtLargestAccessibilityTextSize() throws {
+    @Test func longNameFitsAtLargestTextSizeWithoutClipping() {
+        // 5.4 inch portrait safe area. The glance can't scroll, so its natural
+        // height at this width must fit, or the text would clip.
+        let safeArea = CGSize(width: 375, height: 812 - 44 - 34)
         let view = GlanceView(state: .sample(mood: .grubby, stage: .elder, name: "Professor Wattlebottom"))
             .environment(\.dynamicTypeSize, .accessibility5)
-            .frame(width: 375, height: 734)
-        let renderer = ImageRenderer(content: view)
-        #expect(renderer.uiImage != nil)
+        let host = UIHostingController(rootView: view)
+        let needed = host.sizeThatFits(in: CGSize(width: safeArea.width, height: .greatestFiniteMagnitude))
+        #expect(needed.height <= safeArea.height, "needs \(needed.height) pt, has \(safeArea.height)")
     }
 }

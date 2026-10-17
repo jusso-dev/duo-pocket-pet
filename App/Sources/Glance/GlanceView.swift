@@ -12,26 +12,22 @@ struct GlanceView: View {
     private var content: GlanceContent { GlanceContent(state: state) }
 
     var body: some View {
-        // Side by side when there's room (landscape), stacked otherwise. The
-        // scroll view is a last resort for the largest accessibility sizes so
-        // the name wraps rather than clips.
-        ViewThatFits(in: .vertical) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 24) {
-                    sprite
-                    labels(alignment: .leading)
-                }
-                VStack(spacing: 16) {
-                    sprite
-                    labels(alignment: .center)
-                }
+        // Side by side when there's room (landscape), stacked otherwise, and a
+        // smaller sprite as a last resort at the largest accessibility text
+        // sizes. No scroll view: the glance takes no input, so anything that
+        // needed scrolling would be unreachable. Text wraps rather than clips.
+        ViewThatFits {
+            HStack(spacing: 24) {
+                sprite(min: 96)
+                labels(alignment: .leading)
             }
-            ScrollView {
-                VStack(spacing: 16) {
-                    sprite.frame(height: 120)
-                    labels(alignment: .center)
-                }
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 16) {
+                sprite(min: 96)
+                labels(alignment: .center)
+            }
+            VStack(spacing: 8) {
+                sprite(min: 48)
+                labels(alignment: .center)
             }
         }
         .padding()
@@ -43,9 +39,9 @@ struct GlanceView: View {
         .accessibilityIdentifier("glance")
     }
 
-    private var sprite: some View {
+    private func sprite(min side: CGFloat) -> some View {
         PetSpriteView(state: state, maxScale: 8)
-            .frame(minWidth: 96, idealWidth: 192, maxWidth: 192, minHeight: 96, idealHeight: 192, maxHeight: 192)
+            .frame(minWidth: side, idealWidth: 192, maxWidth: 192, minHeight: side, idealHeight: 192, maxHeight: 192)
     }
 
     private func labels(alignment: HorizontalAlignment) -> some View {
