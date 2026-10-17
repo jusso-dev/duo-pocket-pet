@@ -35,7 +35,9 @@ final class AppModel {
         let store: any PetStore = (try? FilePetStore.standard()) ?? InMemoryPetStore()
         #if targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("-mockFold") {
-            let mock = MockFoldStateService(initial: .closed)
+            // Start like the live hinge service, which reports `.unavailable`
+            // until its first callback. The demo script then closes it at once.
+            let mock = MockFoldStateService(initial: .unavailable)
             Task { await mock.play(MockFoldStateService.demoScript) }
             return AppModel(store: store, fold: mock)
         }
