@@ -32,7 +32,9 @@ public enum PixelFont {
     /// Lays out `text` across lines no wider than `maxWidth` pixels, breaking
     /// at spaces where it can and inside long words where it must.
     public static func layout(_ text: String, maxWidth: Int = .max, alignment: Alignment = .leading) -> PixelBitmap {
-        let lines = wrap(normalise(text), maxColumns: max(1, (maxWidth + tracking) / advance))
+        // `maxWidth` defaults to `Int.max`, so add the tracking without overflowing.
+        let maxColumns = maxWidth > Int.max - tracking ? Int.max / advance : (maxWidth + tracking) / advance
+        let lines = wrap(normalise(text), maxColumns: max(1, maxColumns))
         let columns = lines.map(\.count).max() ?? 0
         let width = max(0, columns * advance - tracking)
         let height = lines.isEmpty ? 0 : lines.count * lineHeight - leading
