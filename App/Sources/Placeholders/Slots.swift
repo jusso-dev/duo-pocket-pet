@@ -10,9 +10,13 @@ struct StageSlot: View {
     let angleDegrees: Double
 
     var body: some View {
-        VStack {
+        VStack(spacing: 12) {
             PetSpriteView(state: state, onStage: true)
-            Text("Stage at \(Int(angleDegrees)) degrees").font(.caption)
+            // No debug readout here: this view ships until the real stage (#7) lands.
+            Text("\(state.name) is \(state.mood.accessibilityDescription)")
+                .font(.headline)
         }
+        .padding()
+        .accessibilityElement(children: .combine)
     }
 }
