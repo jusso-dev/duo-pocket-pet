@@ -1,0 +1,57 @@
+name: Hingeling
+options:
+  bundleIdPrefix: dev.jusso
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  PocketPetCore:
+    path: ..
+targets:
+  Hingeling:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    dependencies:
+      - package: PocketPetCore
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Hingeling
+        UILaunchScreen: {}
+        UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jusso.hingeling
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+  HingelingTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: Hingeling
+      - package: PocketPetCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Hingeling:
+    build:
+      targets:
+        Hingeling: all
+        HingelingTests: [test]
+    test:
+      targets:
+        - HingelingTests
