@@ -4,7 +4,7 @@ Hingeling is a small pixel-art pocket pet for iPhone. It is built for iPhone Duo
 
 The pet lives in the fold of the phone:
 
-- **Closed:** the outer screen shows a quick glance at your pet and its mood. Closing the phone tucks it in for a nap.
+- **Closed:** a closed iPhone Duo works like a compact iPhone, so the app shows a compact glance at your pet and its mood. Closing the phone tucks it in for a nap.
 - **Open:** the inner screen becomes the pet's home, where you feed it, clean up after it and play with it.
 - **Half folded:** the phone becomes a little stage and the pet puts on a show.
 - **Any other iPhone:** you get the same home screen, with a bedtime button in place of the fold.
@@ -26,7 +26,7 @@ Package.swift                  Swift package for the platform-free logic
 Sources/PocketPetCore/         Pet model, decay and ageing, persistence, fold postures, scene state machine
 Tests/PocketPetCoreTests/      Tests that run on Linux and macOS (`swift test`)
 App/                           SwiftUI iOS app (XcodeGen `project.yml`), needs a Mac
-ci/workflows/                  CI workflows, to be moved into .github/workflows
+.github/workflows/             CI: core tests and the app build on the hosted xcode-27 image
 scripts/                       Helper scripts, including the Mac build and test script
 ```
 
@@ -48,7 +48,7 @@ brew install xcodegen
 scripts/mac-build-and-test.sh
 ```
 
-The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on an iPhone simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later.
+The script generates `App/Hingeling.xcodeproj`, then builds and tests the app on the newest available iPhone simulator, or on the one you name (`scripts/mac-build-and-test.sh "iPhone 18 Pro"`). Set `DUO_SIM` to also test on an iPhone Duo simulator. The iPhone Duo hinge APIs need the iOS 27.1 SDK or later.
 
 ## Fold APIs: verified and assumed
 
@@ -61,11 +61,11 @@ Names marked **verified** appear in Apple's own documentation or tech talk code 
 | `View.onHingeChange(isEnabled:_:)` (SwiftUI) | verified, iOS 27.1 | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/), [DeviceHinge docs](https://developer.apple.com/documentation/swiftui/devicehinge) |
 | `DeviceHingeContext.hinge` (nil on devices without a hinge) | verified | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
 | `DeviceHinge.angle` (`Angle`) and `DeviceHinge.status` | verified | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
-| `DeviceHinge.Status` cases `.closed`, `.partiallyOpen`, `.fullyOpen` | `.partiallyOpen` verified in sample code; `.closed` and `.fullyOpen` from a docs mirror, to confirm in Xcode | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
-| `UIHingeInteraction` (UIKit) | verified (name only, not used) | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
-| `GeometryProxy.reservedRegions(kind: .division, options: .includeInactive)` | verified | [Tech talk 111463](https://developer.apple.com/videos/play/tech-talks/111463/) |
+| `DeviceHinge.Status` cases `.closed`, `.partiallyOpen`, `.fullyOpen` | verified (`.partiallyOpen` in Apple sample code, all three in the docs); TODO to confirm against the SDK in Xcode | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/), [DeviceHinge docs](https://developer.apple.com/documentation/swiftui/devicehinge) |
+| `UIHingeInteraction` (UIKit); note `UIHinge.angle` is in radians, unlike SwiftUI's `Angle` | verified (not used) | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
+| `GeometryProxy.reservedRegions(kind:options:layoutDirectionBehavior:)`, for example `reservedRegions(kind: .division, options: .includeInactive)` | verified | [Tech talk 111463](https://developer.apple.com/videos/play/tech-talks/111463/) |
 | `ArrangementView`, `.arrangementViewStyle(.split)` | verified (not used yet) | [Tech talk 111463](https://developer.apple.com/videos/play/tech-talks/111463/) |
-| App UI continuing on the outer display when the phone is closed | verified as behaviour; no dedicated outer-screen API is used | [Tech talk 111463](https://developer.apple.com/videos/play/tech-talks/111463/), [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/) |
+| Outer display | There is **no** dedicated outer-display API. A closed iPhone Duo acts as a normal compact iPhone, so the glance is just the compact layout shown while the posture is `.closed`. (Scene accessories such as `CameraCaptureAccessory` exist, but they are for camera apps and are not used.) | [Tech talk 111464](https://developer.apple.com/videos/play/tech-talks/111464/), [Tech talk 111463](https://developer.apple.com/videos/play/tech-talks/111463/) |
 | `FoldPosture`, `FoldStateService`, `MockFoldStateService`, `HingeReading` | ours, not Apple APIs | `Sources/PocketPetCore/Fold/` |
 
 Apple's tech talk advises using hinge data for live effects and the arrangement and reserved region APIs for layout. Hingeling follows that: the hinge drives the pet's scene (glance, home, stage), and layout inside each scene uses standard containers.
