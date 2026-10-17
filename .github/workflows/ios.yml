@@ -11,8 +11,8 @@ concurrency:
 
 jobs:
   ios:
-    name: Core tests and app build (macOS 15, hosted)
-    runs-on: macos-15
+    name: Core tests and app build (macOS 26, hosted)
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       # The iPhone Duo hinge APIs (DeviceHinge, onHingeChange) ship in the iOS 27.1 SDK.
@@ -35,7 +35,7 @@ jobs:
             fi
           done
           if [ -z "$chosen" ]; then
-            echo "::error::No Xcode on macos-15 has iphonesimulator SDK $MIN_SIM_SDK or later, so the iPhone Duo APIs are not available on this image yet."
+            echo "::error::No Xcode on macos-26 has iphonesimulator SDK $MIN_SIM_SDK or later, so the iPhone Duo APIs are not available on this image yet."
             exit 1
           fi
           sudo xcode-select -s "$chosen/Contents/Developer"
