@@ -205,22 +205,33 @@ struct MeetupLedgerTests {
         return c
     }
 
+    // The ledger's claims are mutating, which #expect can't call directly,
+    // so each result is taken first.
+
     @Test func danceBoostOncePerPairPerDay() {
         var ledger = MeetupLedger()
-        #expect(ledger.claim(pair: "a+b", at: t0, calendar: utc))
-        #expect(!ledger.claim(pair: "a+b", at: t0.addingTimeInterval(3600), calendar: utc))
-        #expect(ledger.claim(pair: "a+c", at: t0.addingTimeInterval(3600), calendar: utc))
-        #expect(ledger.claim(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc))
+        let first = ledger.claim(pair: "a+b", at: t0, calendar: utc)
+        let sameDay = ledger.claim(pair: "a+b", at: t0.addingTimeInterval(3600), calendar: utc)
+        let otherPair = ledger.claim(pair: "a+c", at: t0.addingTimeInterval(3600), calendar: utc)
+        let nextDay = ledger.claim(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc)
+        #expect(first)
+        #expect(!sameDay)
+        #expect(otherPair)
+        #expect(nextDay)
     }
 
     @Test func threeGiftsAndThreeGamesPerPairPerDay() {
         var ledger = MeetupLedger()
-        for _ in 0..<MeetupLedger.giftsPerPairPerDay { #expect(ledger.claimGift(pair: "a+b", at: t0, calendar: utc)) }
-        #expect(!ledger.claimGift(pair: "a+b", at: t0, calendar: utc))
-        #expect(ledger.claimGift(pair: "a+c", at: t0, calendar: utc))
-        for _ in 0..<MeetupLedger.gamesPerPairPerDay { #expect(ledger.claimGame(pair: "a+b", at: t0, calendar: utc)) }
-        #expect(!ledger.claimGame(pair: "a+b", at: t0, calendar: utc))
-        #expect(ledger.claimGift(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc))
+        var gifts: [Bool] = []
+        for _ in 0...MeetupLedger.giftsPerPairPerDay { gifts.append(ledger.claimGift(pair: "a+b", at: t0, calendar: utc)) }
+        #expect(gifts == Array(repeating: true, count: MeetupLedger.giftsPerPairPerDay) + [false])
+        let otherPair = ledger.claimGift(pair: "a+c", at: t0, calendar: utc)
+        #expect(otherPair)
+        var games: [Bool] = []
+        for _ in 0...MeetupLedger.gamesPerPairPerDay { games.append(ledger.claimGame(pair: "a+b", at: t0, calendar: utc)) }
+        #expect(games == Array(repeating: true, count: MeetupLedger.gamesPerPairPerDay) + [false])
+        let nextDay = ledger.claimGift(pair: "a+b", at: t0.addingTimeInterval(26 * 3600), calendar: utc)
+        #expect(nextDay)
         // Old days are dropped.
         #expect(ledger.usage.count == 1)
     }
