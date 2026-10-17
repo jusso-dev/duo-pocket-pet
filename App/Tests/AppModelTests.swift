@@ -29,6 +29,19 @@ struct AppModelTests {
         #expect(model.lastRefusal == .notHungry)
     }
 
+    /// The live app builds `HingeFoldStateService`, which starts at `.unavailable`
+    /// until the first hinge callback. Start the mock there, with a pet saved asleep.
+    @Test func unavailableLaunchThenOpenWakesSavedSleeper() {
+        let mock = MockFoldStateService(initial: .unavailable)
+        let model = AppModel(store: InMemoryPetStore(PetState(isAsleep: true, bornAt: t0)), fold: mock, clock: { [t0] in t0 })
+        #expect(model.scene == .standard)
+        #expect(!model.state.isAsleep)
+        model.apply(.open)
+        #expect(model.scene == .home)
+        #expect(!model.state.isAsleep)
+        #expect(model.perform(.play) != .refused(.asleep))
+    }
+
     @Test func noHingeUsesStandardLayout() {
         let model = AppModel(store: InMemoryPetStore(), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
         #expect(model.scene == .standard)

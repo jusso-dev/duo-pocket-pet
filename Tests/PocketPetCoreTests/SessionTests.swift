@@ -16,7 +16,7 @@ struct PetSceneMachineTests {
         var half = PetSceneMachine()
         #expect(half.handle(.partiallyOpen(angleDegrees: 90)) == [.wakeUp])
         var none = PetSceneMachine()
-        #expect(none.handle(.unavailable) == [])
+        #expect(none.handle(.unavailable) == [.wakeUp])
         #expect(none.scene == .standard)
     }
 
@@ -29,9 +29,12 @@ struct PetSceneMachineTests {
         (.open, .partiallyOpen(angleDegrees: 120), [], .stage(angleDegrees: 120)),
         (.partiallyOpen(angleDegrees: 120), .open, [], .home),
         (.open, .open, [], .home),
-        (.closed, .unavailable, [], .standard),
-        (.unavailable, .open, [], .home),
+        (.closed, .unavailable, [.wakeUp], .standard),
+        (.unavailable, .open, [.wakeUp], .home),
+        (.unavailable, .partiallyOpen(angleDegrees: 100), [.wakeUp], .stage(angleDegrees: 100)),
         (.unavailable, .closed, [.putToSleep], .glance),
+        (.unavailable, .unavailable, [], .standard),
+        (.open, .unavailable, [], .standard),
     ])
     func transitions(from: FoldPosture, to: FoldPosture, effects: [SceneEffect], scene: PetScene) {
         var machine = PetSceneMachine()
@@ -70,6 +73,40 @@ struct PetSessionTests {
         session.apply(.open, at: hours(2))
         #expect(!session.state.isAsleep)
         #expect(abs(session.state.energy - 0.6) < 0.0001)
+    }
+
+    /// The live hinge service starts at `.unavailable`, so this is the real
+    /// launch path on an iPhone Duo: no reading, then the first open reading.
+    @Test func launchWithNoHingeReadingThenOpenWakesSavedSleeper() {
+        let store = InMemoryPetStore(PetState(energy: 0.3, isAsleep: true, bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.unavailable, at: t0)
+        #expect(session.scene == .standard)
+        #expect(!session.state.isAsleep)
+        session.apply(.open, at: t0)
+        #expect(session.scene == .home)
+        #expect(!session.state.isAsleep)
+        #expect(session.perform(.feed, at: t0) != .refused(.asleep))
+    }
+
+    /// A standard iPhone never gets a hinge reading. A pet saved asleep must
+    /// still wake on launch, like opening the phone.
+    @Test func launchWithNoHingeWakesSavedSleeper() throws {
+        let store = InMemoryPetStore(PetState(isAsleep: true, bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.unavailable, at: t0)
+        #expect(session.scene == .standard)
+        #expect(!session.state.isAsleep)
+        #expect(try store.load()?.isAsleep == false)
+    }
+
+    /// The first reading after `.unavailable` can be a close. The pet then sleeps.
+    @Test func launchWithNoHingeReadingThenClosedSleeps() {
+        var session = PetSession(store: InMemoryPetStore(PetState(isAsleep: true, bornAt: t0)), now: t0)
+        session.apply(.unavailable, at: t0)
+        session.apply(.closed, at: t0)
+        #expect(session.scene == .glance)
+        #expect(session.state.isAsleep)
     }
 
     @Test func homeActionsApplyAndSave() {
