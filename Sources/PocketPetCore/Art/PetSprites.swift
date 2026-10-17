@@ -171,7 +171,7 @@ public enum PetSprites {
             let cup = ["o...o", "oo.oo", ".ooo."]
             a.stamp(cup, x: 0, y: PixelFrame.size - 4)
             b.stamp(cup, x: 0, y: PixelFrame.size - 4)
-            return [a, b.shifted(dx: 0, dy: 0)]
+            return [a, b]
         case .grubby:
             var a = body(stage: stage, earsDown: true)
             face(&a, stage: stage, eyes: .droopy, mouth: .flat)

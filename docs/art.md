@@ -58,4 +58,4 @@ An asleep pet stays asleep on stage rather than dancing.
 ## Regenerating the contact sheet
 
 The contact sheet is a review aid only and isn't bundled with the app. If you
-change the art, regenerate it so the picture in this file matches the code.
+change the art, run `scripts/contact-sheet.py` (needs Swift and Pillow) so the picture in this file matches the code.

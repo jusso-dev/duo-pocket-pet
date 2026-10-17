@@ -93,3 +93,17 @@ struct SamplePetTests {
         }
     }
 }
+
+@Suite("Art export")
+struct PetArtExportTests {
+    @Test func contactSheetSourceCoversEveryPose() throws {
+        let source = PetArtExport.contactSheetSource()
+        #expect(source.hasPrefix("palette\n"))
+        let blocks = source.components(separatedBy: "\n\n").filter { !$0.isEmpty }
+        // Palette block plus 11 poses at 4 life stages.
+        #expect(blocks.count == 1 + 11 * 4)
+        if let path = ProcessInfo.processInfo.environment["PET_ART_DUMP"] {
+            try source.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+}
