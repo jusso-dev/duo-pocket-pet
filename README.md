@@ -26,7 +26,7 @@ Package.swift                  Swift package for the platform-free logic
 Sources/PocketPetCore/         Pet model, decay and ageing, persistence, fold postures, scene state machine
 Tests/PocketPetCoreTests/      Tests that run on Linux and macOS (`swift test`)
 App/                           SwiftUI iOS app (XcodeGen `project.yml`), needs a Mac
-.github/workflows/             CI: core tests and the app build on the hosted xcode-27 image
+.github/workflows/             CI: core tests on Linux, plus core tests and the app build on the hosted xcode-27 image
 scripts/                       Helper scripts, including the Mac build and test script
 ```
 
