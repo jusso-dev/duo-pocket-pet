@@ -14,6 +14,13 @@ private final class TestClock: @unchecked Sendable {
     }
 }
 
+private final class TestFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
+}
+
 @MainActor
 @Suite("AppModel")
 struct AppModelTests {
@@ -81,5 +88,104 @@ struct AppModelTests {
     @Test func noHingeUsesStandardLayout() {
         let model = AppModel(store: InMemoryPetStore(), fold: StaticFoldStateService(.unavailable), clock: { [t0] in t0 })
         #expect(model.scene == .standard)
+    }
+}
+
+/// Covers `AppModel.run()`: postures arrive through the stream, the tick fires,
+/// cancelling stops both, and only one run is active at a time.
+@MainActor
+@Suite("AppModel.run")
+struct AppModelRunTests {
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    /// Polls until `condition` holds, yielding the main actor between checks.
+    private func eventually(_ timeout: Duration = .seconds(5), _ condition: () -> Bool) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return condition()
+    }
+
+    @Test func deliversPosturesFromTheStream() async {
+        let mock = MockFoldStateService(initial: .closed)
+        let model = AppModel(store: InMemoryPetStore(), fold: mock, clock: { [t0] in t0 })
+        let task = Task { await model.run() }
+        #expect(await eventually { mock.subscriberCount == 1 })
+        mock.send(.open)
+        #expect(await eventually { model.scene == .home })
+        #expect(!model.state.isAsleep)
+        mock.send(.closed)
+        #expect(await eventually { model.scene == .glance })
+        #expect(model.state.isAsleep)
+        task.cancel()
+        await task.value
+    }
+
+    @Test func ticksOnTheInterval() async {
+        let clock = TestClock(t0)
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        let model = AppModel(store: store, fold: MockFoldStateService(initial: .open), clock: { clock.now }, tickInterval: .milliseconds(10))
+        let task = Task { await model.run() }
+        clock.now = t0.addingTimeInterval(3600)
+        #expect(await eventually { model.state.lastUpdated == clock.now })
+        #expect(model.state.ageSeconds == 3600)
+        task.cancel()
+        await task.value
+    }
+
+    @Test func keepsTickingAfterAFiniteStreamEnds() async {
+        let clock = TestClock(t0)
+        let model = AppModel(store: InMemoryPetStore(PetState(bornAt: t0)), fold: StaticFoldStateService(.unavailable), clock: { clock.now }, tickInterval: .milliseconds(10))
+        let task = Task { await model.run() }
+        clock.now = t0.addingTimeInterval(600)
+        #expect(await eventually { model.state.lastUpdated == clock.now })
+        task.cancel()
+        await task.value
+    }
+
+    @Test func cancellingStopsTheTickerAndUnsubscribes() async {
+        let clock = TestClock(t0)
+        let mock = MockFoldStateService(initial: .open)
+        let model = AppModel(store: InMemoryPetStore(PetState(bornAt: t0)), fold: mock, clock: { clock.now }, tickInterval: .milliseconds(10))
+        let task = Task { await model.run() }
+        #expect(await eventually { mock.subscriberCount == 1 })
+        task.cancel()
+        // run() must return, not hang on the ticker.
+        await task.value
+        #expect(!model.isRunning)
+        #expect(await eventually { mock.subscriberCount == 0 })
+        let stopped = model.state.lastUpdated
+        clock.now = t0.addingTimeInterval(3600)
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(model.state.lastUpdated == stopped)
+    }
+
+    /// Every scene's RootView calls run(). Only one may subscribe and tick.
+    @Test func secondRunReturnsWhileTheFirstIsActive() async {
+        let mock = MockFoldStateService(initial: .open)
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        let model = AppModel(store: store, fold: mock, clock: { [t0] in t0 })
+        let first = Task { await model.run() }
+        #expect(await eventually { mock.subscriberCount == 1 })
+        let secondReturned = TestFlag()
+        let second = Task {
+            await model.run()
+            secondReturned.set()
+        }
+        #expect(await eventually { secondReturned.isSet })
+        #expect(mock.subscriberCount == 1)
+        second.cancel()
+        await second.value
+        #expect(model.isRunning)
+        first.cancel()
+        await first.value
+        #expect(!model.isRunning)
+        // A later scene can take over once the first one has gone.
+        let third = Task { await model.run() }
+        #expect(await eventually { mock.subscriberCount == 1 })
+        third.cancel()
+        await third.value
     }
 }

@@ -12,8 +12,12 @@ final class AppModel {
     let hinge: HingeFoldStateService?
     private let fold: any FoldStateService
     private let clock: @Sendable () -> Date
+    private let tickInterval: Duration
     @ObservationIgnored private var foldTask: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
+    /// True while a `run()` is listening. Every scene's `RootView` calls `run()`,
+    /// and only the first one may subscribe and tick.
+    @ObservationIgnored private(set) var isRunning = false
 
     var state: PetState { session.state }
     var scene: PetScene { session.scene }
@@ -22,11 +26,13 @@ final class AppModel {
         store: any PetStore,
         fold: any FoldStateService,
         hinge: HingeFoldStateService? = nil,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        tickInterval: Duration = .seconds(30)
     ) {
         self.fold = fold
         self.hinge = hinge
         self.clock = clock
+        self.tickInterval = tickInterval
         session = PetSession(store: store, now: clock())
         session.apply(fold.current, at: clock())
     }
@@ -49,11 +55,19 @@ final class AppModel {
     /// The 30-second tick runs in its own task rather than a task group, because
     /// Swift 6.4's region-based isolation checker rejects `@MainActor` child tasks
     /// that capture `self` here ("pattern ... does not understand how to check").
+    ///
+    /// The app supports multiple scenes, and each one runs this. A second call
+    /// while one is already running returns straight away, so there is only
+    /// ever one fold subscription and one ticker.
     func run() async {
+        guard !isRunning else { return }
+        isRunning = true
+        defer { isRunning = false }
         let stream = fold.updates
+        let interval = tickInterval
         let ticker = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: interval)
                 guard let self, !Task.isCancelled else { return }
                 self.session.tick(to: self.clock())
             }
