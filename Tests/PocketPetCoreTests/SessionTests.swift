@@ -44,6 +44,60 @@ struct PetSceneMachineTests {
     }
 }
 
+@Suite("PetScene kind")
+struct PetSceneKindTests {
+    @Test func angleDoesNotChangeTheKind() {
+        #expect(PetScene.stage(angleDegrees: 10).kind == PetScene.stage(angleDegrees: 170).kind)
+        #expect(PetScene.stage(angleDegrees: 90).kind == .stage)
+        #expect(PetScene.glance.kind != PetScene.home.kind)
+        #expect(PetScene.standard.kind == .standard)
+    }
+}
+
+@Suite("PetSceneMachine close hysteresis")
+struct CloseHysteresisTests {
+    @Test(arguments: [0.5, 1.0, 1.5, 2.0, 10.0, 19.9])
+    func settleAfterClosingStaysClosed(angle: Double) {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        let settle = FoldPosture(reading: HingeReading(status: .partiallyOpen, angleDegrees: angle))
+        #expect(machine.handle(settle) == [])
+        #expect(machine.scene == .glance)
+        #expect(machine.handle(.closed) == [])
+    }
+
+    @Test func genuineReopenStillWakes() {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        _ = machine.handle(.partiallyOpen(angleDegrees: 1.5))
+        #expect(machine.handle(.partiallyOpen(angleDegrees: 20)) == [.wakeUp])
+        #expect(machine.scene == .stage(angleDegrees: 20))
+        // Below the threshold again, but no longer closed: the stage follows the hinge.
+        #expect(machine.handle(.partiallyOpen(angleDegrees: 5)) == [])
+        #expect(machine.scene == .stage(angleDegrees: 5))
+        #expect(machine.handle(.closed) == [.putToSleep])
+    }
+
+    @Test func fullOpenAfterSettleWakes() {
+        var machine = PetSceneMachine()
+        _ = machine.handle(.closed)
+        _ = machine.handle(.partiallyOpen(angleDegrees: 2))
+        #expect(machine.handle(.open) == [.wakeUp])
+    }
+
+    /// The repro from the review: closed, then a 1.5 degree settle.
+    @Test func sessionStaysAsleepThroughASettle() {
+        let store = InMemoryPetStore(PetState(bornAt: t0))
+        var session = PetSession(store: store, now: t0)
+        session.apply(.closed, at: t0)
+        let saves = store.saveCount
+        session.apply(FoldPosture(reading: .init(status: .partiallyOpen, angleDegrees: 1.5)), at: t0)
+        #expect(session.scene == .glance)
+        #expect(session.state.isAsleep)
+        #expect(store.saveCount == saves)
+    }
+}
+
 @Suite("PetSession")
 struct PetSessionTests {
     @Test func startsNewPetAndSaves() {
