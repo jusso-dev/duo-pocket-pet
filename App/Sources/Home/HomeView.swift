@@ -5,10 +5,11 @@ import SwiftUI
 struct HomeView: View {
     let model: AppModel
     var showsBedtime = false
+    @State private var reaction: PetReactionCue?
 
     var body: some View {
         VStack(spacing: 24) {
-            PetSpriteSlot(state: model.state)
+            PetSpriteView(state: model.state, reaction: reaction)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Text("\(model.state.name) is \(model.state.mood.accessibilityDescription)")
@@ -24,9 +25,9 @@ struct HomeView: View {
             }
 
             HStack(spacing: 12) {
-                ActionButton(title: "Feed", systemImage: "fork.knife", hint: "Lowers hunger") { _ = model.perform(.feed) }
-                ActionButton(title: "Clean", systemImage: "sparkles", hint: "Restores cleanliness") { _ = model.perform(.clean) }
-                ActionButton(title: "Play", systemImage: "figure.play", hint: "Raises happiness, uses energy") { _ = model.perform(.play) }
+                ActionButton(title: "Feed", systemImage: "fork.knife", hint: "Lowers hunger") { perform(.feed, reaction: .feed) }
+                ActionButton(title: "Clean", systemImage: "sparkles", hint: "Restores cleanliness") { perform(.clean, reaction: .clean) }
+                ActionButton(title: "Play", systemImage: "figure.play", hint: "Raises happiness, uses energy") { perform(.play, reaction: .play) }
                 if showsBedtime {
                     if model.state.isAsleep {
                         ActionButton(title: "Wake", systemImage: "sun.max", hint: "Wakes your pet") { _ = model.perform(.wake) }
@@ -37,6 +38,12 @@ struct HomeView: View {
             }
         }
         .padding()
+    }
+
+    private func perform(_ action: PetAction, reaction kind: PetReaction) {
+        if model.perform(action) == .applied {
+            reaction = PetReactionCue(reaction: kind, startedAt: .now)
+        }
     }
 }
 

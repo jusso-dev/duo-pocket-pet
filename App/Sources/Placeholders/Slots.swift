@@ -3,7 +3,6 @@ import SwiftUI
 
 // Temporary stand-ins so the app builds before the real views land.
 // - GlanceSlot: replaced by Software Engineer 2's GlanceView (#4).
-// - PetSpriteSlot: replaced by Software Engineer 2's art and animation set (#8).
 // - StageSlot: replaced by the stage scene (#7).
 // Delete each slot when its replacement merges.
 
@@ -12,24 +11,12 @@ struct GlanceSlot: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            PetSpriteSlot(state: state)
+            PetSpriteView(state: state, maxScale: 6)
             Text(state.name).font(.title2.bold())
             Text(state.mood.accessibilityDescription.capitalized).foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(state.name) is \(state.mood.accessibilityDescription)")
-    }
-}
-
-struct PetSpriteSlot: View {
-    let state: PetState
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(.tint.opacity(0.25))
-            .frame(width: 96, height: 96)
-            .overlay(Text(state.mood.rawValue).font(.caption.monospaced()))
-            .accessibilityHidden(true)
     }
 }
 
@@ -39,7 +26,7 @@ struct StageSlot: View {
 
     var body: some View {
         VStack {
-            PetSpriteSlot(state: state)
+            PetSpriteView(state: state, onStage: true)
             Text("Stage at \(Int(angleDegrees)) degrees").font(.caption)
         }
     }
