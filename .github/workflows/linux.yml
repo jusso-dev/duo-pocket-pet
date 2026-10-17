@@ -1,0 +1,37 @@
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: the job only checks out code.
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core package (swift build and test, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: swift:6.2-noble
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: No Apple UI frameworks in the core package
+        run: |
+          if grep -rnE '^\s*import (SwiftUI|UIKit|Combine)\b' Sources/; then
+            echo "::error::Sources/PocketPetCore must stay platform-free."
+            exit 1
+          fi
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
