@@ -86,4 +86,17 @@ struct FoldServiceTests {
         await task.value
         #expect(mock.subscriberCount == 0)
     }
+
+    /// The live hinge service is a `BroadcastFoldStateService`. It must not keep
+    /// a copy of every posture it has sent (about 90 per open and close).
+    @Test func broadcastServiceKeepsNoPostureHistory() {
+        let service = BroadcastFoldStateService(initial: .closed)
+        for angle in 0..<1000 {
+            service.send(.partiallyOpen(angleDegrees: Double(angle % 180)))
+        }
+        #expect(service.current == .partiallyOpen(angleDegrees: Double(999 % 180)))
+        let stored = Mirror(reflecting: service).children.compactMap { $0.value as? [FoldPosture] }
+        let held = stored.reduce(0) { $0 + $1.count }
+        #expect(held == 0)
+    }
 }

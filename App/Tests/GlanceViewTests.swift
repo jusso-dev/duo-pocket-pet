@@ -10,10 +10,23 @@ import UIKit
 struct GlanceViewTests {
     private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test func closedPostureShowsGlanceForAsleepPet() {
-        let model = AppModel(store: InMemoryPetStore(), fold: MockFoldStateService(initial: .closed), clock: { [t0] in t0 })
+    @Test func liveStartShowsStandardUntilFirstReadingThenGlance() {
+        // HingeFoldStateService starts at `.unavailable` until the first hinge
+        // callback, so the app launches on the standard scene, not the glance.
+        let fold = MockFoldStateService(initial: .unavailable)
+        let model = AppModel(store: InMemoryPetStore(), fold: fold, clock: { [t0] in t0 })
+        #expect(model.scene == .standard)
+
+        model.apply(.closed)
         #expect(model.scene == .glance)
         #expect(GlanceContent(state: model.state).accessibilityLabel == "Bip is asleep")
+    }
+
+    @Test func liveStartThenOpenReadingShowsHomeAwake() {
+        let model = AppModel(store: InMemoryPetStore(), fold: MockFoldStateService(initial: .unavailable), clock: { [t0] in t0 })
+        model.apply(.open)
+        #expect(model.scene == .home)
+        #expect(!model.state.isAsleep)
     }
 
     @Test func rendersEveryMoodOnACompactScreen() throws {
