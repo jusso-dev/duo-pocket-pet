@@ -23,7 +23,8 @@ struct AvoidsOcclusion: ViewModifier {
             } action: { insets = $0 }
     }
 
-    static func insets(in proxy: GeometryProxy) -> ReservedInsets {
+    // Nonisolated: the geometry transform runs off the main actor.
+    nonisolated static func insets(in proxy: GeometryProxy) -> ReservedInsets {
         if #available(iOS 27.1, *) {
             let regions = proxy.reservedRegions(kind: .occlusion).map(\.frame)
             return ReservedInsets(bounds: CGRect(origin: .zero, size: proxy.size), occlusions: regions)
