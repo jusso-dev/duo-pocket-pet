@@ -25,7 +25,7 @@ struct PetSpriteView: View {
         GeometryReader { proxy in
             let scale = Self.scale(for: proxy.size, maxScale: maxScale)
             let side = CGFloat(PixelFrame.size * scale)
-            TimelineView(.periodic(from: .now, by: reduceMotion ? 3600 : PetSpriteView.tick)) { timeline in
+            TimelineView(.periodic(from: .now, by: tickInterval)) { timeline in
                 PixelCanvas(frame: animator.frame(at: timeline.date, reduceMotion: reduceMotion), scale: scale)
                     .frame(width: side, height: side)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -35,8 +35,16 @@ struct PetSpriteView: View {
         .accessibilityHidden(true)
     }
 
-    /// Fast enough for reaction frames; loop frames change less often.
-    static let tick: TimeInterval = PetAnimator.reactionFrameDuration / 2
+    /// Redraw only as often as frames can change. The glance view is on screen
+    /// for long stretches, so idle loops tick at the loop rate, not the faster
+    /// reaction rate.
+    private var tickInterval: TimeInterval {
+        if reduceMotion { return 3600 }
+        if let reaction, Date.now.timeIntervalSince(reaction.startedAt) < PetAnimator.duration(of: reaction.reaction, stage: state.lifeStage) {
+            return PetAnimator.reactionFrameDuration
+        }
+        return PetAnimator.loopFrameDuration
+    }
 
     private var animator: PetAnimator {
         var animator = PetAnimator(state: state, onStage: onStage)

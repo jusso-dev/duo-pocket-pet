@@ -1,3 +1,5 @@
+import Foundation
+
 /// One frame of pixel art: a fixed-size grid of palette slots.
 public struct PixelFrame: Equatable, Sendable {
     public static let size = 24
@@ -55,5 +57,27 @@ public struct PixelFrame: Equatable, Sendable {
     /// Text form, one row per line, handy for tests and debugging.
     public var ascii: String {
         (0..<height).map { y in String((0..<width).map { self[$0, y].symbol }) }.joined(separator: "\n")
+    }
+}
+
+public enum PetArtExport {
+    /// Text dump of the palette and the first frame of every pose at every
+    /// life stage. `scripts/contact-sheet.py` turns it into `docs/art/contact-sheet.png`.
+    public static func contactSheetSource() -> String {
+        var out = "palette\n"
+        for slot in PaletteSlot.allCases {
+            guard let c = PixelPalette.colour(for: slot) else { continue }
+            out += "\(slot.symbol) \(String(format: "%02X%02X%02X", c.red, c.green, c.blue))\n"
+        }
+        out += "\n"
+        for stage in LifeStage.allCases {
+            var poses: [(String, PetPose, Int)] = Mood.allCases.map { ($0.rawValue, .mood($0), 0) }
+            poses += PetReaction.allCases.map { ($0.rawValue, .reaction($0), 1) }
+            poses.append(("stage", .stage, 1))
+            for (name, pose, index) in poses {
+                out += "\(stage.rawValue) \(name)\n" + PetSprites.frames(for: pose, stage: stage)[index].ascii + "\n\n"
+            }
+        }
+        return out
     }
 }
