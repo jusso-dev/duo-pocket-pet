@@ -36,7 +36,7 @@ struct RootView: View {
         case .home:
             HomeView(model: model)
         case .stage(let angle):
-            StageSlot(state: model.state, angleDegrees: angle)
+            StageView(model: model, angleDegrees: angle)
         case .standard:
             StandardHomeView(model: model)
         }

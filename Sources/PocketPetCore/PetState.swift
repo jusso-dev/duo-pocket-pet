@@ -269,6 +269,16 @@ public struct PetEngine: Sendable {
         return .applied
     }
 
+    /// A cheer from the audience on the half-fold stage. Rate limiting is up to
+    /// the caller (see `StageShow`), so the engine stays clock-free.
+    @discardableResult
+    public mutating func cheer(at now: Date) -> ActionResult {
+        tick(to: now)
+        if state.isAsleep { return .refused(.asleep) }
+        state.happiness = (state.happiness + rules.cheerJoy).clampedMeter
+        return .applied
+    }
+
     @discardableResult
     public mutating func perform(_ action: PetAction, at now: Date) -> ActionResult {
         switch action {
@@ -323,6 +333,8 @@ public struct PetRules: Equatable, Sendable {
     public var playEnergyCost: Meter
     public var playJoy: Meter
     public var playHungerCost: Meter
+    /// Happiness from one cheer on the stage.
+    public var cheerJoy: Meter
     /// Longest gap that decay is applied for, so a pet left for a month is not wrecked.
     public var maxCatchUp: TimeInterval
     /// Decay is integrated in steps of this size so mood thresholds apply part way through a gap.
@@ -332,7 +344,8 @@ public struct PetRules: Equatable, Sendable {
         awake: Rates, asleep: Rates, neglectHappinessLossPerHour: Double,
         feedAmount: Meter, feedMinimumHunger: Meter, feedJoy: Meter, feedMess: Meter,
         cleanJoy: Meter, playEnergyCost: Meter, playJoy: Meter, playHungerCost: Meter,
-        maxCatchUp: TimeInterval, integrationStep: TimeInterval
+        maxCatchUp: TimeInterval, integrationStep: TimeInterval,
+        cheerJoy: Meter = 0.05
     ) {
         self.awake = awake
         self.asleep = asleep
@@ -345,6 +358,7 @@ public struct PetRules: Equatable, Sendable {
         self.playEnergyCost = playEnergyCost
         self.playJoy = playJoy
         self.playHungerCost = playHungerCost
+        self.cheerJoy = cheerJoy
         self.maxCatchUp = maxCatchUp
         self.integrationStep = max(1, integrationStep)
     }

@@ -149,6 +149,12 @@ final class AppModel {
         session.tick(to: clock())
     }
 
+    /// Cheers for the pet on the half-fold stage.
+    @discardableResult
+    func cheer() -> CheerResult {
+        session.cheer(at: clock())
+    }
+
     @discardableResult
     func perform(_ action: PetAction) -> ActionResult {
         let result = session.perform(action, at: clock())

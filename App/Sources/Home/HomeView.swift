@@ -12,16 +12,42 @@ struct HomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            ScrollView {
-                content(spriteHeight: 160)
+        // On the inner display the pet sits on one side of the fold and the
+        // controls on the other, so no button lands on the crease. Without a
+        // fold (outer screen, standard iPhone, older iOS) it is one column.
+        FoldAwareSplit(includeInactive: true) { _ in
+            scrollingIfLarge { petPane(spriteHeight: nil).padding() }
+        } second: { _ in
+            scrollingIfLarge { controlsPane.padding() }
+        } fallback: {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView {
+                    content(spriteHeight: 160)
+                }
+            } else {
+                content(spriteHeight: nil)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func scrollingIfLarge<Pane: View>(@ViewBuilder _ pane: () -> Pane) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            ScrollView { pane() }
         } else {
-            content(spriteHeight: nil)
+            pane()
         }
     }
 
     private func content(spriteHeight: CGFloat?) -> some View {
+        VStack(spacing: 24) {
+            petPane(spriteHeight: spriteHeight)
+            controlsPane
+        }
+        .padding()
+    }
+
+    private func petPane(spriteHeight: CGFloat?) -> some View {
         VStack(spacing: 24) {
             PetSpriteView(state: model.state, reaction: reaction)
                 .frame(maxWidth: .infinity, maxHeight: spriteHeight ?? .infinity)
@@ -30,7 +56,11 @@ struct HomeView: View {
             Text("\(model.state.name) is \(model.state.mood.accessibilityDescription)")
                 .font(.headline)
                 .multilineTextAlignment(.center)
+        }
+    }
 
+    private var controlsPane: some View {
+        VStack(spacing: 24) {
             NeedsPanel(state: model.state)
 
             if let refusal = model.lastRefusal {
@@ -43,7 +73,6 @@ struct HomeView: View {
 
             ActionRow(buttons: buttons, dynamicTypeSize: dynamicTypeSize)
         }
-        .padding()
     }
 
     private var buttons: [ActionRow.Item] {
